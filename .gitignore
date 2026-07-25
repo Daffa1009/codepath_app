@@ -5,8 +5,8 @@
 *.swp
 .DS_Store
 .atom/
-.build/
-.buildlog/
+#.build/
+#.buildlog/
 .history
 .svn/
 .swiftpm/
@@ -30,7 +30,7 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
-/build/
+#/build/
 /coverage/
 
 # Symbolication related

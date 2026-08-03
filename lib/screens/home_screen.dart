@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../config/theme.dart';
 import '../providers/roadmap_provider.dart';
 import '../providers/task_provider.dart';
+import '../providers/user_provider.dart';
 import '../widgets/course_card.dart';
 import '../widgets/task_card.dart';
 import 'profile_screen.dart';
@@ -23,13 +24,17 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final roadmapProvider = context.watch<RoadmapProvider>();
     final taskProvider = context.watch<TaskProvider>();
+    final userProvider = context.watch<UserProvider>();
+    
     final lastRoadmap = roadmapProvider.lastInProgress;
     final recommended = roadmapProvider.recommendedNext;
     final upcomingTasks = taskProvider.upcoming.take(2).toList();
 
-    // Nama tampilan: prioritaskan namaLengkap, fallback ke username
-    final displayName =
-        namaLengkap.isNotEmpty ? namaLengkap : (username.isNotEmpty ? username : 'Pengguna');
+    // Nama tampilan: prioritaskan namaLengkap, fallback ke username dari provider agar tetap sync
+    final displayName = userProvider.namaLengkap.isNotEmpty 
+        ? userProvider.namaLengkap 
+        : (userProvider.username.isNotEmpty ? userProvider.username : 'Pengguna');
+    final avatarUrl = userProvider.avatarUrl;
 
     return SafeArea(
       child: SingleChildScrollView(
@@ -49,11 +54,15 @@ class HomeScreen extends StatelessWidget {
                       MaterialPageRoute(
                           builder: (_) => const ProfileScreen()),
                     ),
-                    child: const CircleAvatar(
-                      radius: 24,
+                    child: CircleAvatar(
+                      radius: 22,
+                      backgroundImage: avatarUrl != null 
+                        ? NetworkImage(avatarUrl) 
+                        : null,
                       backgroundColor: Colors.white24,
-                      child:
-                          Icon(Icons.person, color: Colors.white),
+                      child: avatarUrl == null 
+                        ? const Icon(Icons.person, color: Colors.white) 
+                        : null,
                     ),
                   ),
                   const SizedBox(width: 12),

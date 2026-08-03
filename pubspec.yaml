@@ -16,11 +16,24 @@ dependencies:
   intl: ^0.19.0
   supabase_flutter: ^2.5.6
   web: ^1.1.1
+  image_picker: ^1.2.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^4.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/logo_cp.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  web:
+    generate: true
+  image_path: "assets/logo_cp.png"
+  min_sdk_android: 21
+  background_color: "#FFFFFF"

@@ -1,13 +1,17 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui_img;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:image_picker/image_picker.dart';
 import '../config/theme.dart';
 import '../providers/user_provider.dart';
 import '../services/auth_service.dart';
 import '../services/auth_result.dart';
 import 'login_screen.dart';
 
-/// Halaman profil user — lihat & edit profil, ganti password, logout.
+/// Halaman profil user — lihat & edit profil, ganti password, logout, upload foto.
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -18,6 +22,8 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   bool _savingProfile = false;
   bool _changingPassword = false;
+  bool _uploadingAvatar = false;
+  String? _avatarUrl;
   String? _profileError;
   String? _passwordError;
   String? _profileSuccess;
@@ -36,6 +42,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     _oldPassCtrl = TextEditingController();
     _newPassCtrl = TextEditingController();
     _confirmPassCtrl = TextEditingController();
+    _avatarUrl = user?.avatarUrl;
   }
 
   @override
@@ -60,6 +67,85 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return nama[0].toUpperCase();
   }
 
+  Future<void> _pickAndUploadAvatar() async {
+    final picker = ImagePicker();
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+    );
+    
+    if (image == null) return;
+    
+    final rawBytes = await image.readAsBytes();
+    
+    if (!mounted) return;
+    
+    // Tampilkan Dialog Crop / Sesuaikan
+    final Uint8List? croppedBytes = await showDialog<Uint8List>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _CropDialog(imageBytes: rawBytes),
+    );
+    
+    if (croppedBytes == null) return;
+    
+    setState(() => _uploadingAvatar = true);
+    
+    try {
+      final userId = _client.auth.currentUser!.id;
+      final fileName = '$userId.png'; // Di-crop & dieksport sebagai PNG
+      
+      // Upload ke Supabase Storage bucket "avatars"
+      await _client.storage
+        .from('avatars')
+        .uploadBinary(
+          fileName,
+          croppedBytes,
+          fileOptions: const FileOptions(
+            contentType: 'image/png',
+            upsert: true,
+          ),
+        );
+      
+      // Ambil public URL
+      final publicUrl = _client.storage
+        .from('avatars')
+        .getPublicUrl(fileName);
+      
+      // Tambahkan cache buster
+      final urlWithCacheBuster = '$publicUrl?t=${DateTime.now().millisecondsSinceEpoch}';
+      
+      // Update tabel profiles
+      await _client
+        .from('profiles')
+        .update({'avatar_url': urlWithCacheBuster})
+        .eq('id', userId);
+      
+      if (mounted) {
+        context.read<UserProvider>().updateAvatarUrl(urlWithCacheBuster);
+        setState(() {
+          _avatarUrl = urlWithCacheBuster;
+          _uploadingAvatar = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Foto profil berhasil diperbarui!'),
+            backgroundColor: AppColors.primaryTeal,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _uploadingAvatar = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal upload foto: ${e.toString()}'),
+            backgroundColor: AppColors.maroon,
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _updateProfile() async {
     final newName = _namaCtrl.text.trim();
     if (newName.isEmpty) {
@@ -81,7 +167,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
           .from('profiles')
           .update({'nama_lengkap': newName}).eq('id', userId);
 
-      // Update UserProvider agar nama langsung berubah di UI
       if (mounted) {
         final user = context.read<UserProvider>().user;
         if (user != null) {
@@ -90,6 +175,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 role: user.role,
                 username: user.username,
                 namaLengkap: newName,
+                avatarUrl: user.avatarUrl,
               ));
         }
         setState(() {
@@ -214,19 +300,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             const SizedBox(height: 20),
 
-            // Avatar besar
+            // Avatar Upload Stack
             Center(
-              child: CircleAvatar(
-                radius: 50,
-                backgroundColor: AppColors.primaryTeal,
-                child: Text(
-                  _getInitials(),
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w700,
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 55,
+                    backgroundImage: _avatarUrl != null 
+                      ? NetworkImage(_avatarUrl!) 
+                      : null,
+                    backgroundColor: AppColors.primaryTeal,
+                    child: _avatarUrl == null 
+                      ? Text(_getInitials(), style: const TextStyle(fontSize: 32, color: Colors.white))
+                      : null,
                   ),
-                ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: GestureDetector(
+                      onTap: _pickAndUploadAvatar,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                        ),
+                        child: const Icon(Icons.camera_alt, color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ),
+                  if (_uploadingAvatar)
+                    const Positioned.fill(
+                      child: CircleAvatar(
+                        radius: 55,
+                        backgroundColor: Colors.black45,
+                        child: CircularProgressIndicator(color: Colors.white),
+                      ),
+                    ),
+                ],
               ),
             ),
             const SizedBox(height: 16),
@@ -358,7 +470,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               controller: _newPassCtrl,
               obscureText: true,
               decoration: const InputDecoration(
-                hintText: 'Password Baru (min. 6 karakter)',
+                hintText: 'Password Baru',
               ),
             ),
             const SizedBox(height: 12),
@@ -369,14 +481,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 hintText: 'Konfirmasi Password Baru',
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed:
-                    _changingPassword ? null : _changePassword,
+                onPressed: _changingPassword ? null : _changePassword,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.gold,
+                  backgroundColor: AppColors.primaryTeal,
                   foregroundColor: Colors.white,
                 ),
                 child: _changingPassword
@@ -392,19 +503,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
             const SizedBox(height: 32),
             const Divider(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
             // === LOGOUT ===
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
+              child: OutlinedButton.icon(
                 onPressed: _confirmLogout,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.maroon,
-                  foregroundColor: Colors.white,
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.maroon),
+                  foregroundColor: AppColors.maroon,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
                 icon: const Icon(Icons.logout),
-                label: const Text('Keluar'),
+                label: const Text('Keluar Aplikasi'),
               ),
             ),
             const SizedBox(height: 40),
@@ -414,17 +526,114 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
-  Widget _sectionTitle(String text) {
+  Widget _sectionTitle(String title) {
     return Align(
       alignment: Alignment.centerLeft,
       child: Text(
-        text,
+        title,
         style: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-          color: AppColors.primaryTeal,
-        ),
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            color: AppColors.primaryTeal),
       ),
     );
   }
 }
+
+class _CropDialog extends StatefulWidget {
+  final Uint8List imageBytes;
+  const _CropDialog({required this.imageBytes});
+
+  @override
+  State<_CropDialog> createState() => _CropDialogState();
+}
+
+class _CropDialogState extends State<_CropDialog> {
+  final GlobalKey _repaintKey = GlobalKey();
+
+  Future<void> _cropAndSave() async {
+    try {
+      final boundary = _repaintKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      // Beri sedikit delay agar rendering selesai
+      await Future.delayed(const Duration(milliseconds: 100));
+      final image = await boundary.toImage(pixelRatio: 2.0);
+      final byteData = await image.toByteData(format: ui_img.ImageByteFormat.png);
+      if (!mounted) return;
+      if (byteData != null) {
+        Navigator.pop(context, byteData.buffer.asUint8List());
+      } else {
+        Navigator.pop(context, null);
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context, null);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      title: const Text(
+        'Sesuaikan Foto Profil',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: AppColors.primaryTeal,
+        ),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Text(
+            'Geser & cubit/scroll untuk memperbesar atau menggeser gambar agar pas di dalam lingkaran.',
+            style: TextStyle(fontSize: 13, color: Colors.grey),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 24),
+          Center(
+            child: RepaintBoundary(
+              key: _repaintKey,
+              child: Container(
+                width: 200,
+                height: 200,
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black12,
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  boundaryMargin: const EdgeInsets.all(50),
+                  child: Image.memory(
+                    widget.imageBytes,
+                    fit: BoxFit.cover,
+                    width: 200,
+                    height: 200,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, null),
+          child: const Text('Batal', style: TextStyle(color: AppColors.textMuted)),
+        ),
+        ElevatedButton(
+          onPressed: _cropAndSave,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primaryTeal,
+            foregroundColor: Colors.white,
+            shape: const StadiumBorder(),
+          ),
+          child: const Text('Simpan & Crop'),
+        ),
+      ],
+    );
+  }
+}
+

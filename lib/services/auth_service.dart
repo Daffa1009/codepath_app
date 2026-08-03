@@ -105,7 +105,7 @@ class AuthService {
     // 2. Fetch role & nama_lengkap dari tabel profiles.
     final profileResponse = await _client
         .from('profiles')
-        .select('username, nama_lengkap, role')
+        .select('username, nama_lengkap, role, avatar_url')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -113,12 +113,14 @@ class AuthService {
     final dbUsername = profileResponse?['username'] as String? ?? cleanUsername;
     final namaLengkap =
         profileResponse?['nama_lengkap'] as String? ?? cleanUsername;
+    final avatarUrl = profileResponse?['avatar_url'] as String?;
 
     return AuthResult(
       userId: user.id,
       role: role,
       username: dbUsername,
       namaLengkap: namaLengkap,
+      avatarUrl: avatarUrl,
     );
   }
 
@@ -138,7 +140,7 @@ class AuthService {
 
     final profileResponse = await _client
         .from('profiles')
-        .select('username, nama_lengkap, role')
+        .select('username, nama_lengkap, role, avatar_url')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -149,6 +151,7 @@ class AuthService {
       role: profileResponse['role'] as String? ?? 'user',
       username: profileResponse['username'] as String,
       namaLengkap: profileResponse['nama_lengkap'] as String? ?? '',
+      avatarUrl: profileResponse['avatar_url'] as String?,
     );
   }
 }

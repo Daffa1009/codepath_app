@@ -7,9 +7,7 @@ import 'providers/progress_provider.dart';
 import 'providers/roadmap_provider.dart';
 import 'providers/task_provider.dart';
 import 'providers/user_provider.dart';
-import 'screens/login_screen.dart';
-import 'screens/main_nav_screen.dart';
-import 'screens/admin/admin_home_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/auth_result.dart';
 import 'services/auth_service.dart';
 
@@ -57,18 +55,8 @@ class CodePathApp extends StatelessWidget {
         title: 'CodePath',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
-        home: _getInitialScreen(initialUser),
+        home: SplashScreen(currentUser: initialUser),
       ),
     );
-  }
-
-  Widget _getInitialScreen(AuthResult? user) {
-    if (user == null) {
-      return const LoginScreen();
-    }
-    if (user.isAdmin) {
-      return const AdminHomeScreen();
-    }
-    return MainNavScreen(user: user);
   }
 }

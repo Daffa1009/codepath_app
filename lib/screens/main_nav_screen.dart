@@ -4,7 +4,7 @@ import '../providers/roadmap_provider.dart';
 import '../providers/task_provider.dart';
 import '../providers/progress_provider.dart';
 import '../services/auth_result.dart';
-import '../widgets/bottom_nav.dart';
+import '../widgets/liquid_nav_bar.dart';
 import 'home_screen.dart';
 import 'roadmap_list_screen.dart';
 import 'task_list_screen.dart';
@@ -12,6 +12,7 @@ import 'progress_screen.dart';
 
 /// Shell utama aplikasi setelah login — menampung 4 tab:
 /// Beranda, Jalur Belajar, Latihan, Progress.
+/// Menggunakan LiquidNavBar dengan efek cekungan bezier smooth.
 class MainNavScreen extends StatefulWidget {
   final AuthResult? user;
 
@@ -23,6 +24,14 @@ class MainNavScreen extends StatefulWidget {
 
 class _MainNavScreenState extends State<MainNavScreen> {
   int _index = 0;
+
+  /// Daftar tab untuk liquid navigation bar.
+  static const _navItems = [
+    LiquidNavItem(icon: Icons.home_rounded, label: 'Beranda'),
+    LiquidNavItem(icon: Icons.collections_bookmark_rounded, label: 'Jalur Belajar'),
+    LiquidNavItem(icon: Icons.check_circle_rounded, label: 'Latihan'),
+    LiquidNavItem(icon: Icons.bar_chart_rounded, label: 'Progress'),
+  ];
 
   @override
   void initState() {
@@ -56,9 +65,10 @@ class _MainNavScreenState extends State<MainNavScreen> {
 
     return Scaffold(
       body: IndexedStack(index: _index, children: screens),
-      bottomNavigationBar: BottomNav(
+      bottomNavigationBar: LiquidNavBar(
         currentIndex: _index,
         onTap: (i) => setState(() => _index = i),
+        items: _navItems,
       ),
     );
   }

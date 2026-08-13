@@ -203,41 +203,44 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
                     )
                   else
                     // Mobile/desktop: thumbnail + tap untuk buka external
-                    Material(
-                      color: Colors.transparent,
-                      borderRadius:
-                          BorderRadius.circular(AppRadius.card),
-                      child: InkWell(
-                        onTap: () =>
-                            _openExternalYoutube(context),
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: Material(
+                        color: Colors.transparent,
                         borderRadius:
                             BorderRadius.circular(AppRadius.card),
-                        child: Container(
-                          height: 220,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [
-                                AppColors.primaryTeal,
-                                Color(0xFF1B5A50)
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                            borderRadius: BorderRadius.circular(
-                                AppRadius.card),
-                          ),
-                          child: Center(
-                            child: Container(
-                              width: 56,
-                              height: 56,
-                              decoration: const BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
+                        child: InkWell(
+                          onTap: () =>
+                              _openExternalYoutube(context),
+                          borderRadius:
+                              BorderRadius.circular(AppRadius.card),
+                          child: Container(
+                            height: 220,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  AppColors.primaryTeal,
+                                  Color(0xFF1B5A50)
+                                ],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
                               ),
-                              child: const Icon(Icons.play_arrow,
-                                  color: AppColors.primaryTeal,
-                                  size: 32),
+                              borderRadius: BorderRadius.circular(
+                                  AppRadius.card),
+                            ),
+                            child: Center(
+                              child: Container(
+                                width: 56,
+                                height: 56,
+                                decoration: const BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(Icons.play_arrow,
+                                    color: AppColors.primaryTeal,
+                                    size: 32),
+                              ),
                             ),
                           ),
                         ),
@@ -275,48 +278,45 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
                   ),
                   const SizedBox(height: 20),
 
-                  // Tombol "Tonton di YouTube" — selalu ada
-                  ElevatedButton.icon(
+                  // Tombol "Tonton di YouTube" — selalu ada (animated)
+                  _AnimatedYoutubeButton(
                     onPressed: () =>
                         _openExternalYoutube(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.maroon,
-                      foregroundColor: Colors.white,
-                    ),
-                    icon: const Icon(Icons.open_in_new),
-                    label: const Text('Tonton di YouTube'),
                   ),
                   const SizedBox(height: 12),
 
                   if (widget.roadmapId != null)
-                    SizedBox(
-                      width: double.infinity,
-                      child: OutlinedButton.icon(
-                        onPressed: widget.item.isCompleted
-                            ? null
-                            : () {
-                                context
-                                    .read<RoadmapProvider>()
-                                    .markItemComplete(
-                                        widget.roadmapId!,
-                                        widget.item.id);
-                                Navigator.pop(context);
-                              },
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                              color: AppColors.primaryTeal),
-                          foregroundColor:
-                              AppColors.primaryTeal,
-                          shape: const StadiumBorder(),
-                          padding: const EdgeInsets.symmetric(
-                              vertical: 14),
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: widget.item.isCompleted
+                              ? null
+                              : () {
+                                  context
+                                      .read<RoadmapProvider>()
+                                      .markItemComplete(
+                                          widget.roadmapId!,
+                                          widget.item.id);
+                                  Navigator.pop(context);
+                                },
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(
+                                color: AppColors.primaryTeal),
+                            foregroundColor:
+                                AppColors.primaryTeal,
+                            shape: const StadiumBorder(),
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 14),
+                          ),
+                          icon: Icon(widget.item.isCompleted
+                              ? Icons.check_circle
+                              : Icons.check),
+                          label: Text(widget.item.isCompleted
+                              ? 'Sudah Selesai'
+                              : 'Tandai Selesai'),
                         ),
-                        icon: Icon(widget.item.isCompleted
-                            ? Icons.check_circle
-                            : Icons.check),
-                        label: Text(widget.item.isCompleted
-                            ? 'Sudah Selesai'
-                            : 'Tandai Selesai'),
                       ),
                     ),
                 ],
@@ -334,72 +334,183 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: isActive
-            ? AppColors.primaryTeal.withValues(alpha: 0.06)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        child: InkWell(
-          onTap: () => _seekToTime(ch.startTime),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Material(
+          color: isActive
+              ? AppColors.primaryTeal.withValues(alpha: 0.06)
+              : Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.card),
-          child: Container(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 14, vertical: 14),
-            decoration: BoxDecoration(
-              border: Border.all(
-                color: isActive
-                    ? AppColors.primaryTeal.withValues(alpha: 0.2)
-                    : const Color(0xFFE8E8E8),
+          child: InkWell(
+            onTap: () => _seekToTime(ch.startTime),
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 14, vertical: 14),
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: isActive
+                      ? AppColors.primaryTeal.withValues(alpha: 0.2)
+                      : const Color(0xFFE8E8E8),
+                ),
+                borderRadius: BorderRadius.circular(AppRadius.card),
               ),
-              borderRadius: BorderRadius.circular(AppRadius.card),
-            ),
-            child: Row(
-              children: [
-                // Timestamp badge
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
+              child: Row(
+                children: [
+                  // Timestamp badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: isActive
+                          ? AppColors.primaryTeal
+                          : AppColors.primaryTeal.withValues(
+                              alpha: 0.8),
+                      borderRadius:
+                          BorderRadius.circular(AppRadius.pill),
+                    ),
+                    child: Text(
+                      ch.timeLabel,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+
+                  // Judul chapter
+                  Expanded(
+                    child: Text(
+                      ch.title,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight:
+                            isActive ? FontWeight.w700 : FontWeight.w500,
+                        color: isActive
+                            ? AppColors.primaryTeal
+                            : Colors.black87,
+                      ),
+                    ),
+                  ),
+
+                  // Chevron
+                  Icon(
+                    Icons.play_arrow,
+                    size: 18,
                     color: isActive
                         ? AppColors.primaryTeal
-                        : AppColors.primaryTeal.withValues(
-                            alpha: 0.8),
-                    borderRadius:
-                        BorderRadius.circular(AppRadius.pill),
+                        : AppColors.textMuted,
                   ),
-                  child: Text(
-                    ch.timeLabel,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tombol "Tonton di YouTube" dengan animasi PRESS ONLY:
+/// - Scale mengecil ke 96% saat ditekan
+/// - Cursor pointer (telunjuk) saat di-hover (web)
+/// - Gradient lebih terang saat ditekan
+class _AnimatedYoutubeButton extends StatefulWidget {
+  final VoidCallback onPressed;
+
+  const _AnimatedYoutubeButton({required this.onPressed});
+
+  @override
+  State<_AnimatedYoutubeButton> createState() =>
+      _AnimatedYoutubeButtonState();
+}
+
+class _AnimatedYoutubeButtonState extends State<_AnimatedYoutubeButton> {
+  bool _pressed = false;
+
+  void _setPressed(bool v) {
+    if (_pressed != v) setState(() => _pressed = v);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTapDown: (_) => _setPressed(true),
+        onTapCancel: () => _setPressed(false),
+        onTapUp: (_) => _setPressed(false),
+        onTap: widget.onPressed,
+        child: AnimatedScale(
+          scale: _pressed ? 0.96 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            curve: Curves.easeOut,
+            height: 56,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: _pressed
+                    ? const [
+                        Color(0xFFD32F2F),
+                        Color(0xFFE53935),
+                        Color(0xFFEF5350),
+                      ]
+                    : const [
+                        Color(0xFFB31217),
+                        AppColors.maroon,
+                        Color(0xFFD32F2F),
+                      ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(AppRadius.pill),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.maroon
+                      .withValues(alpha: _pressed ? 0.55 : 0.35),
+                  blurRadius: _pressed ? 20 : 14,
+                  offset: Offset(0, _pressed ? 3 : 6),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 30,
+                  height: 30,
+                  decoration: const BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.play_arrow_rounded,
+                    color: AppColors.maroon,
+                    size: 20,
                   ),
                 ),
                 const SizedBox(width: 12),
-
-                // Judul chapter
-                Expanded(
-                  child: Text(
-                    ch.title,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight:
-                          isActive ? FontWeight.w700 : FontWeight.w500,
-                      color: isActive
-                          ? AppColors.primaryTeal
-                          : Colors.black87,
-                    ),
+                const Text(
+                  'Tonton di YouTube',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                    decoration: TextDecoration.none,
                   ),
                 ),
-
-                // Chevron
-                Icon(
-                  Icons.play_arrow,
-                  size: 18,
-                  color: isActive
-                      ? AppColors.primaryTeal
-                      : AppColors.textMuted,
+                const SizedBox(width: 6),
+                const Icon(
+                  Icons.open_in_new,
+                  color: Colors.white70,
+                  size: 16,
                 ),
               ],
             ),

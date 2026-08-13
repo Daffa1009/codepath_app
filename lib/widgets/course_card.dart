@@ -12,56 +12,66 @@ class CourseCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.card),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.cardBackground,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: Material(
+          color: Colors.transparent,
           borderRadius: BorderRadius.circular(AppRadius.card),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              width: 48,
-              height: 48,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            child: Container(
+              padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: roadmap.iconColor,
-                borderRadius: BorderRadius.circular(14),
+                color: AppColors.cardBackground,
+                borderRadius: BorderRadius.circular(AppRadius.card),
               ),
-              child: Icon(roadmap.icon, color: Colors.white),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(roadmap.title, style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
-                  CustomProgressBar(
-                    progress: roadmap.progress,
-                    fillColor: roadmap.progress >= 1
-                        ? AppColors.success
-                        : AppColors.gold,
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: roadmap.iconColor,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(roadmap.icon, color: Colors.white),
                   ),
-                  const SizedBox(height: 6),
-                  Text(
-                    '${roadmap.progressPercent}% Selesai',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                  Text(
-                    'Ketuk untuk Detail Kursus',
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: AppColors.success, fontWeight: FontWeight.w600),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(roadmap.title, style: Theme.of(context).textTheme.titleMedium),
+                        const SizedBox(height: 8),
+                        CustomProgressBar(
+                          progress: roadmap.progress,
+                          fillColor: roadmap.progress >= 1
+                              ? AppColors.success
+                              : AppColors.gold,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          '${roadmap.progressPercent}% Selesai',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        Text(
+                          'Ketuk untuk Detail Kursus',
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: AppColors.success, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );

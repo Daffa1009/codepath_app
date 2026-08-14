@@ -27,6 +27,12 @@ class _LoginScreenState extends State<LoginScreen> {
   final _namaLengkapController = TextEditingController();
   final _konfirmasiPasswordController = TextEditingController();
 
+  // Error state
+  String? _errorMessage;
+  bool _shake = false;
+  bool _usernameError = false;
+  bool _passwordError = false;
+
   @override
   void dispose() {
     _usernameController.dispose();
@@ -57,15 +63,60 @@ class _LoginScreenState extends State<LoginScreen> {
     return null;
   }
 
+  /// Memicu shake animation dan tampilkan pesan error di UI
+  /// (bukan SnackBar — sekarang inline di atas tombol).
+  void _showInlineError(String message) {
+    setState(() {
+      _errorMessage = message;
+      _shake = true;
+
+      // Deteksi field mana yang salah
+      final lower = message.toLowerCase();
+      if (lower.contains('password') && lower.contains('salah')) {
+        // Username atau password salah → keduanya merah
+        _usernameError = true;
+        _passwordError = true;
+      } else if (lower.contains('tidak terdaftar') ||
+          lower.contains('tidak ditemukan')) {
+        // Akun tidak ada → username saja
+        _usernameError = true;
+        _passwordError = false;
+      } else if (lower.contains('password minimal')) {
+        _passwordError = true;
+      } else {
+        _usernameError = false;
+        _passwordError = false;
+      }
+    });
+
+    // Hentikan shake setelah animasi selesai
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        setState(() => _shake = false);
+      }
+    });
+  }
+
+  void _clearError() {
+    if (_errorMessage != null || _usernameError || _passwordError) {
+      setState(() {
+        _errorMessage = null;
+        _usernameError = false;
+        _passwordError = false;
+      });
+    }
+  }
+
   Future<void> _handleSubmit() async {
     final error = _validate();
     if (error != null) {
-      _showSnackBar(error, isError: true);
+      _showInlineError(error);
       return;
     }
 
     setState(() {
       _loading = true;
+      _clearError();
     });
 
     try {
@@ -99,21 +150,11 @@ class _LoginScreenState extends State<LoginScreen> {
       );
     } on AuthException catch (e) {
       setState(() => _loading = false);
-      _showSnackBar(e.message, isError: true);
+      _showInlineError(e.message);
     } catch (e) {
       setState(() => _loading = false);
-      _showSnackBar('Terjadi kesalahan. Silakan coba lagi.', isError: true);
+      _showInlineError('Terjadi kesalahan. Silakan coba lagi.');
     }
-  }
-
-  void _showSnackBar(String message, {bool isError = false}) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? AppColors.maroon : AppColors.primaryTeal,
-        behavior: SnackBarBehavior.floating,
-      ),
-    );
   }
 
   @override
@@ -159,94 +200,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         );
                       },
                       child: _mode == _AuthMode.signIn
-                          ? Column(
-                              key: const ValueKey('signInHeader'),
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Hello, Welcome Back!',
-                                  style: TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'Belum punya akun? ',
-                                      style: TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    OutlinedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _mode = _AuthMode.signUp;
-                                        });
-                                      },
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.white,
-                                        side: const BorderSide(color: Colors.white),
-                                        shape: const StadiumBorder(),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 4,
-                                        ),
-                                      ),
-                                      child: const Text('Register'),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            )
-                          : Column(
-                              key: const ValueKey('signUpHeader'),
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                const Text(
-                                  'Create Account',
-                                  style: TextStyle(
-                                    fontSize: 28,
-                                    fontWeight: FontWeight.w800,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Row(
-                                  children: [
-                                    const Text(
-                                      'Sudah punya akun? ',
-                                      style: TextStyle(
-                                        color: Colors.white70,
-                                        fontSize: 14,
-                                      ),
-                                    ),
-                                    OutlinedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _mode = _AuthMode.signIn;
-                                        });
-                                      },
-                                      style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.white,
-                                        side: const BorderSide(color: Colors.white),
-                                        shape: const StadiumBorder(),
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 16,
-                                          vertical: 4,
-                                        ),
-                                      ),
-                                      child: const Text('Sign In'),
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
+                          ? _buildSignInHeader()
+                          : _buildSignUpHeader(),
                     ),
                   ),
                 ),
@@ -290,6 +245,102 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  Widget _buildSignInHeader() {
+    return Column(
+      key: const ValueKey('signInHeader'),
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Hello, Welcome Back!',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Text(
+              'Belum punya akun? ',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+            ),
+            OutlinedButton(
+              onPressed: () {
+                setState(() {
+                  _mode = _AuthMode.signUp;
+                  _clearError();
+                });
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.white),
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+              ),
+              child: const Text('Register'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSignUpHeader() {
+    return Column(
+      key: const ValueKey('signUpHeader'),
+      mainAxisAlignment: MainAxisAlignment.center,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Create Account',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: Colors.white,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            const Text(
+              'Sudah punya akun? ',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: 14,
+              ),
+            ),
+            OutlinedButton(
+              onPressed: () {
+                setState(() {
+                  _mode = _AuthMode.signIn;
+                  _clearError();
+                });
+              },
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.white,
+                side: const BorderSide(color: Colors.white),
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+              ),
+              child: const Text('Sign In'),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
   Widget _buildSignInForm() {
     return Column(
       key: const ValueKey('signInForm'),
@@ -304,24 +355,57 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        TextField(
-          controller: _usernameController,
-          decoration: _inputDecoration('Username', Icons.person_outline),
-          keyboardType: TextInputType.text,
-          textInputAction: TextInputAction.next,
+
+        // Error message dengan shake animation
+        _ErrorBanner(
+          shake: _shake,
+          message: _errorMessage,
+          isRegister: false,
+          onSignUpTap: () {
+            setState(() {
+              _mode = _AuthMode.signUp;
+              _clearError();
+            });
+          },
         ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _passwordController,
-          obscureText: _obscurePassword,
-          decoration: _inputDecoration('Password', Icons.lock_outline,
-              isPassword: true,
-              obscure: _obscurePassword,
-              onToggleObscure: () =>
-                  setState(() => _obscurePassword = !_obscurePassword)),
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => _handleSubmit(),
+
+        ShakeWidget(
+          shake: _shake,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _usernameController,
+                onChanged: (_) => _clearError(),
+                decoration: _inputDecoration(
+                  'Username',
+                  Icons.person_outline,
+                  hasError: _usernameError,
+                ),
+                keyboardType: TextInputType.text,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                onChanged: (_) => _clearError(),
+                decoration: _inputDecoration(
+                  'Password',
+                  Icons.lock_outline,
+                  isPassword: true,
+                  obscure: _obscurePassword,
+                  hasError: _passwordError,
+                  onToggleObscure: () => setState(
+                      () => _obscurePassword = !_obscurePassword),
+                ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _handleSubmit(),
+              ),
+            ],
+          ),
         ),
+
         const SizedBox(height: 12),
         Align(
           alignment: Alignment.centerRight,
@@ -361,52 +445,88 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
         const SizedBox(height: 24),
-        TextField(
-          controller: _usernameController,
-          decoration: _inputDecoration('Username', Icons.person_outline),
-          keyboardType: TextInputType.text,
-          textInputAction: TextInputAction.next,
+
+        // Error message dengan shake animation
+        _ErrorBanner(
+          shake: _shake,
+          message: _errorMessage,
+          isRegister: true,
+          onSignUpTap: () {},
         ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _namaLengkapController,
-          decoration: _inputDecoration('Nama Lengkap', Icons.badge_outlined),
-          keyboardType: TextInputType.text,
-          textInputAction: TextInputAction.next,
+
+        ShakeWidget(
+          shake: _shake,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: _usernameController,
+                onChanged: (_) => _clearError(),
+                decoration: _inputDecoration(
+                  'Username',
+                  Icons.person_outline,
+                  hasError: _usernameError,
+                ),
+                keyboardType: TextInputType.text,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _namaLengkapController,
+                decoration: _inputDecoration('Nama Lengkap', Icons.badge_outlined),
+                keyboardType: TextInputType.text,
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                onChanged: (_) => _clearError(),
+                decoration: _inputDecoration(
+                  'Password',
+                  Icons.lock_outline,
+                  isPassword: true,
+                  obscure: _obscurePassword,
+                  hasError: _passwordError,
+                  onToggleObscure: () => setState(
+                      () => _obscurePassword = !_obscurePassword),
+                ),
+                textInputAction: TextInputAction.next,
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _konfirmasiPasswordController,
+                obscureText: _obscureConfirmPassword,
+                decoration: _inputDecoration(
+                  'Konfirmasi Password',
+                  Icons.lock_outline,
+                  isPassword: true,
+                  obscure: _obscureConfirmPassword,
+                  onToggleObscure: () => setState(() =>
+                      _obscureConfirmPassword = !_obscureConfirmPassword),
+                ),
+                textInputAction: TextInputAction.done,
+                onSubmitted: (_) => _handleSubmit(),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _passwordController,
-          obscureText: _obscurePassword,
-          decoration: _inputDecoration('Password', Icons.lock_outline,
-              isPassword: true,
-              obscure: _obscurePassword,
-              onToggleObscure: () =>
-                  setState(() => _obscurePassword = !_obscurePassword)),
-          textInputAction: TextInputAction.next,
-        ),
-        const SizedBox(height: 16),
-        TextField(
-          controller: _konfirmasiPasswordController,
-          obscureText: _obscureConfirmPassword,
-          decoration: _inputDecoration('Konfirmasi Password', Icons.lock_outline,
-              isPassword: true,
-              obscure: _obscureConfirmPassword,
-              onToggleObscure: () => setState(
-                  () => _obscureConfirmPassword = !_obscureConfirmPassword)),
-          textInputAction: TextInputAction.done,
-          onSubmitted: (_) => _handleSubmit(),
-        ),
+
         const SizedBox(height: 28),
         _buildGradientButton('Register', _handleSubmit),
       ],
     );
   }
 
-  InputDecoration _inputDecoration(String hintText, IconData suffixIcon,
-      {bool isPassword = false,
-      bool obscure = false,
-      VoidCallback? onToggleObscure}) {
+  InputDecoration _inputDecoration(
+    String hintText,
+    IconData suffixIcon, {
+    bool isPassword = false,
+    bool obscure = false,
+    bool hasError = false,
+    VoidCallback? onToggleObscure,
+  }) {
+    const errorColor = AppColors.maroon;
     return InputDecoration(
       hintText: hintText,
       filled: true,
@@ -415,18 +535,29 @@ class _LoginScreenState extends State<LoginScreen> {
           ? IconButton(
               icon: Icon(
                 obscure ? Icons.visibility_off : Icons.visibility,
-                color: Colors.grey,
+                color: hasError ? errorColor : Colors.grey,
               ),
               onPressed: onToggleObscure,
             )
-          : Icon(suffixIcon, color: Colors.grey),
+          : Icon(suffixIcon, color: hasError ? errorColor : Colors.grey),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: BorderSide.none,
+        borderSide: hasError
+            ? const BorderSide(color: AppColors.maroon, width: 1.5)
+            : BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: hasError
+            ? const BorderSide(color: AppColors.maroon, width: 1.5)
+            : BorderSide.none,
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
-        borderSide: const BorderSide(color: AppColors.primaryTeal, width: 1.5),
+        borderSide: BorderSide(
+          color: hasError ? AppColors.maroon : AppColors.primaryTeal,
+          width: 1.5,
+        ),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
     );
@@ -477,6 +608,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
+/// Header clipper untuk efek melengkung di bagian atas.
 class _HeaderClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
@@ -493,4 +625,174 @@ class _HeaderClipper extends CustomClipper<Path> {
 
   @override
   bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+}
+
+/// Banner error dengan styling yang jelas dan animasi fade-in.
+class _ErrorBanner extends StatelessWidget {
+  final String? message;
+  final bool shake;
+  final bool isRegister;
+  final VoidCallback onSignUpTap;
+
+  const _ErrorBanner({
+    required this.message,
+    required this.shake,
+    required this.isRegister,
+    required this.onSignUpTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (message == null) return const SizedBox.shrink();
+
+    final showSignUpCta = !isRegister &&
+        (message!.toLowerCase().contains('tidak terdaftar') ||
+            message!.toLowerCase().contains('tidak ditemukan'));
+
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      transitionBuilder: (child, animation) => FadeTransition(
+        opacity: animation,
+        child: SizeTransition(
+          sizeFactor: animation,
+          axisAlignment: -1.0,
+          child: child,
+        ),
+      ),
+      child: Container(
+        key: ValueKey(message),
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.maroon.withValues(alpha: 0.08),
+          border: Border.all(color: AppColors.maroon, width: 1.2),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.error_outline,
+                  color: AppColors.maroon,
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    message!,
+                    style: const TextStyle(
+                      color: AppColors.maroon,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w600,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (showSignUpCta) ...[
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton.icon(
+                  onPressed: onSignUpTap,
+                  icon: const Icon(
+                    Icons.person_add_alt_1,
+                    size: 16,
+                    color: AppColors.primaryTeal,
+                  ),
+                  label: const Text(
+                    'Daftar sekarang →',
+                    style: TextStyle(
+                      color: AppColors.primaryTeal,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: EdgeInsets.zero,
+                    minimumSize: const Size(0, 0),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Widget yang shake ke kiri-kanan saat [shake] = true.
+/// Dipakai untuk efek visual saat error muncul.
+class ShakeWidget extends StatefulWidget {
+  final Widget child;
+  final bool shake;
+
+  const ShakeWidget({
+    super.key,
+    required this.child,
+    required this.shake,
+  });
+
+  @override
+  State<ShakeWidget> createState() => _ShakeWidgetState();
+}
+
+class _ShakeWidgetState extends State<ShakeWidget>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 400),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant ShakeWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.shake && !oldWidget.shake) {
+      _controller.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        // Oscillasi: -10 → 10 → -10 → 10 → 0
+        double offset = 0;
+        if (_controller.value < 0.2) {
+          offset = -10 * (_controller.value / 0.2);
+        } else if (_controller.value < 0.4) {
+          offset = 10 * ((_controller.value - 0.2) / 0.2);
+        } else if (_controller.value < 0.6) {
+          offset = -10 * ((_controller.value - 0.4) / 0.2);
+        } else if (_controller.value < 0.8) {
+          offset = 10 * ((_controller.value - 0.6) / 0.2);
+        } else {
+          offset = -10 * (1 - (_controller.value - 0.8) / 0.2);
+        }
+        return Transform.translate(
+          offset: Offset(offset, 0),
+          child: child,
+        );
+      },
+      child: widget.child,
+    );
+  }
 }

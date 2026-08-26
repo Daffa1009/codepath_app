@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -42,6 +44,23 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
   List<ChapterItem> _chapters = [];
   bool _chaptersLoading = true;
   int? _activeChapterSeconds; // null = no active chapter
+
+  // State AI Assistant — history disimpan di lokal state sehingga otomatis
+  // terhapus saat user keluar dari halaman.
+  final List<Map<String, String>> _chatHistory = [];
+  bool _isAiLoading = false;
+  final TextEditingController _questionController = TextEditingController();
+  final ScrollController _chatScrollController = ScrollController();
+
+  /// Batas maksimum pertanyaan user per sesi.
+  static const int _maxUserMessages = 20;
+
+  @override
+  void dispose() {
+    _questionController.dispose();
+    _chatScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -126,20 +145,140 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
     }
   }
 
+  /// Kirim pertanyaan user ke AI Assistant via Supabase Edge Function.
+  Future<void> _sendQuestion() async {
+    final question = _questionController.text.trim();
+    if (question.isEmpty || _isAiLoading) return;
+
+    final userMessageCount =
+        _chatHistory.where((msg) => msg['role'] == 'user').length;
+
+    if (userMessageCount >= _maxUserMessages) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Batas maksimum 20 pertanyaan per sesi telah tercapai.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _chatHistory.add({'role': 'user', 'content': question});
+      _isAiLoading = true;
+    });
+    _questionController.clear();
+    _scrollToBottom();
+
+    try {
+      debugPrint('[AI] sending question: "$question"');
+      final response = await Supabase.instance.client.functions
+          .invoke(
+            'ai-assistant',
+            body: {
+              'question': question,
+              'videoTitle': widget.item.title,
+              'channelName': widget.item.channelName,
+              'chapters': _chapters
+                  .map((c) => {
+                        'title': c.title,
+                        'startTime': c.startTime,
+                      })
+                  .toList(),
+            },
+          )
+          .timeout(
+            const Duration(seconds: 90),
+            onTimeout: () => throw TimeoutException(
+              'AI tidak merespons dalam 90 detik. Coba lagi.',
+            ),
+          );
+
+      debugPrint('[AI] response status: ${response.status}');
+      final answer = response.data['answer'] as String;
+
+      if (!mounted) return;
+      setState(() {
+        _chatHistory.add({'role': 'assistant', 'content': answer});
+        _isAiLoading = false;
+      });
+      _scrollToBottom();
+    } catch (e, st) {
+      debugPrint('[AI] ERROR: $e');
+      debugPrint('[AI] stack: $st');
+      if (!mounted) return;
+      
+      String message = 'Maaf, terjadi kesalahan. Silakan coba lagi.';
+      if (e is FunctionException) {
+        debugPrint(
+            '[AI] FunctionException: status=${e.status}, details=${e.details}');
+        message = 'AI gagal (${e.status}): ${e.details ?? ''}';
+      } else if (e is TimeoutException) {
+        message = e.message ?? message;
+      } else {
+        message = 'AI gagal: $e';
+      }
+      setState(() {
+        _chatHistory.add({'role': 'assistant', 'content': message});
+        _isAiLoading = false;
+      });
+    }
+  }
+
+  /// Auto-scroll chat ke bawah saat ada pesan baru.
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_chatScrollController.hasClients) {
+        _chatScrollController.animateTo(
+          _chatScrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  /// Tiga titik teal dengan opacity naik — indikator AI sedang mengetik.
+  Widget _buildTypingIndicator() {
+    return Row(
+      children: List.generate(
+        3,
+        (i) => TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: Duration(milliseconds: 600 + (i * 100)),
+          builder: (context, value, child) {
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                color:
+                    AppColors.primaryTeal.withValues(alpha: 0.5 + value * 0.5),
+                shape: BoxShape.circle,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return SafeArea(
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.fromLTRB(20, 8, 12, 20),
-              color: AppColors.primaryTeal,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.fromLTRB(20, 8, 12, 20),
+                color: AppColors.primaryTeal,
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
                     (widget.topicTitle ?? '').toUpperCase(),
@@ -319,12 +458,19 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
                         ),
                       ),
                     ),
+
+                  const SizedBox(height: 8),
+
+                  // === AI LEARNING ASSISTANT ===
+                  _buildAiAssistantSection(),
+                  const SizedBox(height: 24),
                 ],
               ),
             ),
           ],
         ),
       ),
+        ),
     );
   }
 
@@ -408,6 +554,239 @@ class _VideoDetailScreenState extends State<VideoDetailScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Section "AI Learning Assistant": header, riwayat chat (max height 300),
+  /// quick questions saat kosong, indikator typing, dan input pertanyaan.
+  Widget _buildAiAssistantSection() {
+    return Container(
+      margin: const EdgeInsets.only(top: 24),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryTeal,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(
+                    Icons.auto_awesome,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'AI Learning Assistant',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
+                    ),
+                    Text(
+                      'Tanya apa saja tentang materi ini',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          if (_chatHistory.isNotEmpty)
+            Container(
+              constraints: const BoxConstraints(maxHeight: 300),
+              child: ListView.builder(
+                controller: _chatScrollController,
+                padding: const EdgeInsets.all(12),
+                shrinkWrap: true,
+                itemCount: _chatHistory.length,
+                itemBuilder: (context, index) {
+                  final msg = _chatHistory[index];
+                  final isUser = msg['role'] == 'user';
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: isUser
+                          ? MainAxisAlignment.end
+                          : MainAxisAlignment.start,
+                      children: [
+                        if (!isUser) ...[
+                          const CircleAvatar(
+                            radius: 16,
+                            backgroundColor: AppColors.primaryTeal,
+                            child: Icon(
+                              Icons.auto_awesome,
+                              color: Colors.white,
+                              size: 14,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                        ],
+                        Flexible(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isUser
+                                  ? AppColors.primaryTeal
+                                  : Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: isUser
+                                  ? null
+                                  : Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: SelectableText(
+                              msg['content']!,
+                              style: TextStyle(
+                                color: isUser ? Colors.white : Colors.black87,
+                                fontSize: 13,
+                                height: 1.5,
+                              ),
+                            ),
+                          ),
+                        ),
+                        if (isUser) const SizedBox(width: 8),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          if (_isAiLoading)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    radius: 16,
+                    backgroundColor: AppColors.primaryTeal,
+                    child: Icon(
+                      Icons.auto_awesome,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildTypingIndicator(),
+                ],
+              ),
+            ),
+          if (_chatHistory.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  'Jelaskan konsep utama video ini',
+                  'Berikan contoh penggunaan',
+                  'Apa yang harus dipelajari selanjutnya?',
+                ].map((q) => GestureDetector(
+                      onTap: () {
+                        _questionController.text = q;
+                        _sendQuestion();
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryTeal.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color:
+                                AppColors.primaryTeal.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Text(
+                          q,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: AppColors.primaryTeal,
+                          ),
+                        ),
+                      ),
+                    )).toList(),
+              ),
+            ),
+          const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _questionController,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendQuestion(),
+                    decoration: InputDecoration(
+                      hintText: 'Tanyakan sesuatu tentang materi ini...',
+                      hintStyle: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade400,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(24),
+                        borderSide: BorderSide.none,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: _isAiLoading ? null : _sendQuestion,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: _isAiLoading
+                          ? Colors.grey.shade300
+                          : AppColors.primaryTeal,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.send_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

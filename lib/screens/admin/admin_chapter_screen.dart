@@ -336,6 +336,7 @@ class _AdminChapterScreenState extends State<AdminChapterScreen> {
         title: Text(
           'Chapter: ${widget.videoTitle}',
           overflow: TextOverflow.ellipsis,
+          maxLines: 1,
         ),
         leading: IconButton(
           onPressed: () => Navigator.pop(context),

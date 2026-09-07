@@ -39,6 +39,8 @@ class AppHeader extends StatelessWidget {
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                     color: Colors.white,
                   ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
             ),
           ),
           if (onClose != null)

@@ -8,6 +8,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:web/web.dart' as web;
 import 'dart:ui_web' as ui;
 
+import 'package:pointer_interceptor/pointer_interceptor.dart';
+
 import '../config/theme.dart';
 import '../models/roadmap_item.dart';
 import '../models/chapter_item.dart';
@@ -112,80 +114,7 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
     _chatScrollController.dispose();
     _fabScaleController.dispose();
     _pulseController.dispose();
-    _removePointerBlockerOverlay();
     super.dispose();
-  }
-
-  /// Bikin HTML overlay element di atas iframe YouTube untuk memblokir
-  /// pointer event saat panel AI terbuka. IgnorePointer Flutter TIDAK
-  /// bekerja untuk platform view HTML — iframe adalah elemen DOM
-  /// independen yang menangkap event-nya sendiri, jadi harus manipulasi
-  /// langsung di level DOM/browser.
-  void _applyPointerBlockerOverlay() {
-    if (!kIsWeb) return;
-    try {
-      final iframe =
-          web.document.querySelector('iframe.youtube-embed') as web.HTMLIFrameElement?;
-      if (iframe == null) return;
-
-      // Matikan pointer-events iframe langsung di CSS
-      iframe.style.pointerEvents = 'none';
-      // Hentikan video YouTube untuk benar-benar mencegah play/pause
-      final src = iframe.src;
-      if (!src.contains('enablejsapi=1')) {
-        iframe.src = src + (src.contains('?') ? '&' : '?') + 'enablejsapi=1';
-      }
-      // Buat overlay element transparan di atas seluruh area halaman
-      // (bukan hanya di atas iframe) yang menangkap SEMUA pointer event
-      // di level browser. Ini adalah "second line of defense" karena
-      // panel AI juga bisa tumpang tindih dengan chapter tiles.
-      // Overlay div ini sendirinya (tanpa event listener) sudah cukup
-      // memblokir klik mencapai iframe/chapter karena zIndex 999
-      // menutupi seluruh viewport. Penutupan panel di-handle oleh
-      // Flutter GestureDetector barrier di Stack.
-      _removePointerBlockerOverlay(); // bersihkan dulu jika sudah ada
-      final overlay = web.document.createElement('div') as web.HTMLDivElement;
-      overlay.id = '__ai-chat-pointer-blocker__';
-      overlay.style.position = 'fixed';
-      overlay.style.top = '0';
-      overlay.style.left = '0';
-      overlay.style.width = '100vw';
-      overlay.style.height = '100vh';
-      overlay.style.zIndex = '999'; // di atas konten tapi di bawah panel AI (1000)
-      overlay.style.backgroundColor = 'transparent';
-      overlay.style.cursor = 'default';
-      web.document.body!.appendChild(overlay);
-    } catch (_) {
-      // Best effort — jangan crash UI jika gagal
-    }
-  }
-
-  /// Hapus overlay pemblokiran pointer (dipanggil saat panel ditutup).
-  void _removePointerBlockerOverlay() {
-    if (!kIsWeb) return;
-    try {
-      final existing =
-          web.document.getElementById('__ai-chat-pointer-blocker__');
-      if (existing != null) {
-        existing.remove();
-      }
-      final iframe =
-          web.document.querySelector('iframe.youtube-embed') as web.HTMLIFrameElement?;
-      if (iframe != null) {
-        iframe.style.pointerEvents = '';
-      }
-    } catch (_) {}
-  }
-
-  /// Toggle panel AI + pasang/hapus DOM overlay pemblokiran pointer ke iframe
-  void _toggleChat() {
-    final willOpen = !_isChatOpen;
-    setState(() => _isChatOpen = willOpen);
-    if (willOpen) {
-      _applyPointerBlockerOverlay();
-    } else {
-      _removePointerBlockerOverlay();
-    }
   }
 
   Future<void> _loadChapters() async {
@@ -369,7 +298,7 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
     final screenHeight = MediaQuery.of(context).size.height;
     final panelWidth = (screenWidth * 0.85).clamp(280.0, 380.0);
     final panelHeight = screenHeight * 0.68;
-    final fabSize = 56.0;
+    const fabSize = 56.0;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -395,13 +324,17 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text(
-                            (widget.topicTitle ?? '').toUpperCase(),
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleMedium
-                                ?.copyWith(
-                                    color: Colors.white, letterSpacing: 1),
+                          Expanded(
+                            child: Text(
+                              (widget.topicTitle ?? '').toUpperCase(),
+                              style: Theme.of(context)
+                                  .textTheme
+                                  .titleMedium
+                                  ?.copyWith(
+                                      color: Colors.white, letterSpacing: 1),
+                              overflow: TextOverflow.ellipsis,
+                              maxLines: 1,
+                            ),
                           ),
                           IconButton(
                             onPressed: () => Navigator.pop(context),
@@ -418,14 +351,18 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
                           // === AREA VIDEO: embed iframe di web, fallback di mobile ===
                           if (kIsWeb && _videoId != null)
                             // YouTube embed di web
-                            ClipRRect(
-                              borderRadius:
-                                  BorderRadius.circular(AppRadius.card),
-                              child: SizedBox(
-                                height: 220,
-                                width: double.infinity,
-                                child: HtmlElementView(
-                                    viewType: _viewId),
+                            PointerInterceptor(
+                              // Intercept klik saat chat AI terbuka agar tidak bocor ke iframe
+                              intercepting: _isChatOpen,
+                              child: ClipRRect(
+                                borderRadius:
+                                    BorderRadius.circular(AppRadius.card),
+                                child: SizedBox(
+                                  height: 220,
+                                  width: double.infinity,
+                                  child: HtmlElementView(
+                                      viewType: _viewId),
+                                ),
                               ),
                             )
                           else if (kIsWeb && _videoId == null)
@@ -584,19 +521,14 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
           ),
 
           // === OVERLAY BARRIER (modal-style) ===
-          // GestureDetector ini menangkap tap di luar panel sebagai
-          // "tutup panel" (DOM overlay utama juga dipasang di
-          // _applyPointerBlockerOverlay untuk memblokir event ke iframe).
+          // ModalBarrier menangkap semua pointer event agar tidak ada
+          // yang lolos ke video / chapter di belakangnya. dismissible=true
+          // artinya tap pada barrier = tutup panel.
           if (_isChatOpen)
-            Positioned.fill(
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _toggleChat,
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  color: Colors.black.withValues(alpha: 0.3),
-                ),
-              ),
+            ModalBarrier(
+              color: Colors.black.withValues(alpha: 0.3),
+              dismissible: true,
+              onDismiss: () => setState(() => _isChatOpen = false),
             ),
 
           // === CHAT PANEL (slide dari kanan) ===
@@ -611,6 +543,8 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
             width: panelWidth,
             height: panelHeight,
             child: IgnorePointer(
+              // AbsorbPointer diaktifkan saat tertutup, agar event tidak
+              // bocor ke panel tersembunyi di luar layar.
               ignoring: !_isChatOpen,
               child: _buildChatPanel(),
             ),
@@ -624,10 +558,7 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
             bottom: 16,
             child: IgnorePointer(
               ignoring: _isChatOpen,
-              child: GestureDetector(
-                onTap: _toggleChat,
-                child: _buildFloatingButton(fabSize),
-              ),
+              child: _buildFloatingButton(fabSize),
             ),
           ),
         ],
@@ -835,10 +766,10 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
             isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
         children: [
           if (!isUser) ...[
-            CircleAvatar(
+            const CircleAvatar(
               radius: 16,
               backgroundColor: AppColors.primaryTeal,
-              child: const Icon(
+              child: Icon(
                 Icons.auto_awesome,
                 color: Colors.white,
                 size: 14,
@@ -880,10 +811,10 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        CircleAvatar(
+        const CircleAvatar(
           radius: 16,
           backgroundColor: AppColors.primaryTeal,
-          child: const Icon(
+          child: Icon(
             Icons.auto_awesome,
             color: Colors.white,
             size: 14,

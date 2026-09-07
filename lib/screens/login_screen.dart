@@ -655,7 +655,7 @@ class _ErrorBanner extends StatelessWidget {
         opacity: animation,
         child: SizeTransition(
           sizeFactor: animation,
-          axisAlignment: -1.0,
+          alignment: Alignment.topCenter,
           child: child,
         ),
       ),

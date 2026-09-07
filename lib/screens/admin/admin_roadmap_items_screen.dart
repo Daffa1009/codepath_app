@@ -254,21 +254,29 @@ class _AdminRoadmapItemsScreenState extends State<AdminRoadmapItemsScreen> {
                       ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text('Kelola Video',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(color: Colors.white)),
+                        child: Text(
+                          'Kelola Video',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(color: Colors.white),
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                        ),
                       ),
                     ],
                   ),
                   Padding(
                     padding: const EdgeInsets.only(left: 56),
-                    child: Text(widget.roadmapTitle,
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: Colors.white70)),
+                    child: Text(
+                      widget.roadmapTitle,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: Colors.white70),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                    ),
                   ),
                 ],
               ),

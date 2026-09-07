@@ -102,6 +102,7 @@ class _LiquidNavBarState extends State<LiquidNavBar>
   Widget build(BuildContext context) {
     // Padding bawah untuk safe area (notch HP)
     final bottomPadding = MediaQuery.of(context).padding.bottom;
+    const double horizontalPadding = 16.0;
 
     return Stack(
       clipBehavior: Clip.none,
@@ -111,6 +112,7 @@ class _LiquidNavBarState extends State<LiquidNavBar>
           painter: _LiquidNavPainter(
             activePosition: _activePosition,
             color: AppColors.primaryTeal,
+            horizontalPadding: horizontalPadding,
           ),
           child: SizedBox(
             height: 70 + bottomPadding,
@@ -127,92 +129,95 @@ class _LiquidNavBarState extends State<LiquidNavBar>
             padding: EdgeInsets.only(bottom: bottomPadding),
             child: SizedBox(
               height: 70,
-              child: Row(
-                children: List.generate(widget.items.length, (index) {
-                  final item = widget.items[index];
-                  final isActive = index == widget.currentIndex;
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: horizontalPadding),
+                child: Row(
+                  children: List.generate(widget.items.length, (index) {
+                    final item = widget.items[index];
+                    final isActive = index == widget.currentIndex;
 
-                  return Expanded(
-                    child: GestureDetector(
-                      onTap: () => _onTabTapped(index),
-                      behavior: HitTestBehavior.translucent,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        curve: Curves.easeOutCubic,
-                        transform: Matrix4.translationValues(
-                          0,
-                          isActive ? -28 : 0,
-                          0,
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            // Lingkaran putih untuk icon aktif
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 300),
-                              curve: Curves.easeOutCubic,
-                              width: isActive ? 52 : 0,
-                              height: isActive ? 52 : 0,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                shape: BoxShape.circle,
-                                boxShadow: isActive
-                                    ? [
-                                        BoxShadow(
-                                          color: AppColors.primaryTeal.withValues(alpha: 0.3),
-                                          blurRadius: 12,
-                                          offset: const Offset(0, 4),
-                                        )
-                                      ]
-                                    : [],
-                              ),
-                              child: isActive
-                                  ? Icon(
-                                      item.icon,
-                                      color: AppColors.primaryTeal,
-                                      size: 24,
-                                    )
-                                  : const SizedBox.shrink(),
-                            ),
-
-                            // Icon kecil untuk tab tidak aktif
-                            if (!isActive) ...[
-                              Icon(
-                                item.icon,
-                                color: Colors.white60,
-                                size: 22,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                item.label,
-                                style: const TextStyle(
-                                  color: Colors.white60,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w400,
+                    return Expanded(
+                      child: GestureDetector(
+                        onTap: () => _onTabTapped(index),
+                        behavior: HitTestBehavior.translucent,
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 300),
+                          curve: Curves.easeOutCubic,
+                          transform: Matrix4.translationValues(
+                            0,
+                            isActive ? -28 : 0,
+                            0,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              // Lingkaran putih untuk icon aktif
+                              AnimatedContainer(
+                                duration: const Duration(milliseconds: 300),
+                                curve: Curves.easeOutCubic,
+                                width: isActive ? 52 : 0,
+                                height: isActive ? 52 : 0,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  boxShadow: isActive
+                                      ? [
+                                          BoxShadow(
+                                            color: AppColors.primaryTeal.withValues(alpha: 0.3),
+                                            blurRadius: 12,
+                                            offset: const Offset(0, 4),
+                                          )
+                                        ]
+                                      : [],
                                 ),
+                                child: isActive
+                                    ? Icon(
+                                        item.icon,
+                                        color: AppColors.primaryTeal,
+                                        size: 24,
+                                      )
+                                    : const SizedBox.shrink(),
                               ),
-                            ],
 
-                            // Label tab aktif (di bawah lingkaran)
-                            if (isActive)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 4),
-                                child: Text(
+                              // Icon kecil untuk tab tidak aktif
+                              if (!isActive) ...[
+                                Icon(
+                                  item.icon,
+                                  color: Colors.white60,
+                                  size: 22,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
                                   item.label,
                                   style: const TextStyle(
-                                    color: Colors.white,
+                                    color: Colors.white60,
                                     fontSize: 10,
-                                    fontWeight: FontWeight.w600,
+                                    fontWeight: FontWeight.w400,
                                   ),
                                 ),
-                              ),
-                          ],
+                              ],
+
+                              // Label tab aktif (di bawah lingkaran)
+                              if (isActive)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Text(
+                                    item.label,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  );
-                }),
+                    );
+                  }),
+                ),
               ),
             ),
           ),
@@ -227,10 +232,12 @@ class _LiquidNavBarState extends State<LiquidNavBar>
 class _LiquidNavPainter extends CustomPainter {
   final double activePosition; // 0.0 - 1.0
   final Color color;
+  final double horizontalPadding;
 
   _LiquidNavPainter({
     required this.activePosition,
     required this.color,
+    this.horizontalPadding = 0.0,
   });
 
   @override
@@ -254,41 +261,59 @@ class _LiquidNavPainter extends CustomPainter {
   Path _buildPath(Size size) {
     final path = Path();
 
-    const double cornerRadius = 20;
-    const double notchRadius = 36;
-    final double notchCenter = size.width * activePosition;
+    const double topRadius = 16.0;
+    const double notchRadius = 34.0;
+    const double smoothSpan = 18.0;
+    const double depth = 30.0;
 
-    // Rounded corner kiri atas
-    path.moveTo(0, cornerRadius);
-    path.quadraticBezierTo(0, 0, cornerRadius, 0);
+    final double contentWidth = size.width - (horizontalPadding * 2);
+    final double cx = horizontalPadding + (contentWidth * activePosition);
 
-    // Garis ke awal cekungan
-    path.lineTo(notchCenter - notchRadius - 20, 0);
+    final double p1 = (cx - notchRadius - smoothSpan).clamp(0.0, size.width);
+    final double p2 = (cx + notchRadius + smoothSpan).clamp(0.0, size.width);
 
-    // Kurva masuk cekungan (bezier cubic)
+    // ── 1. Titik awal sisi kiri ──
+    if (p1 > topRadius) {
+      path.moveTo(0, topRadius);
+      path.quadraticBezierTo(0, 0, topRadius, 0);
+      path.lineTo(p1, 0);
+    } else {
+      path.moveTo(0, 0);
+      if (p1 > 0) {
+        path.lineTo(p1, 0);
+      }
+    }
+
+    // ── 2. Cekungan liquid bezier smooth ──
+    // Turun dari (p1, 0) menuju (cx, depth)
     path.cubicTo(
-      notchCenter - notchRadius, 0,
-      notchCenter - notchRadius, notchRadius * 0.8,
-      notchCenter, notchRadius * 0.85,
+      cx - notchRadius,
+      0,
+      cx - (notchRadius * 0.55),
+      depth,
+      cx,
+      depth,
     );
 
-    // Kurva keluar cekungan
+    // Naik dari (cx, depth) menuju (p2, 0)
     path.cubicTo(
-      notchCenter + notchRadius, notchRadius * 0.8,
-      notchCenter + notchRadius, 0,
-      notchCenter + notchRadius + 20, 0,
+      cx + (notchRadius * 0.55),
+      depth,
+      cx + notchRadius,
+      0,
+      p2,
+      0,
     );
 
-    // Garis ke kanan (sebelum rounded corner)
-    path.lineTo(size.width - cornerRadius, 0);
+    // ── 3. Sisi kanan ──
+    if (p2 < size.width - topRadius) {
+      path.lineTo(size.width - topRadius, 0);
+      path.quadraticBezierTo(size.width, 0, size.width, topRadius);
+    } else {
+      path.lineTo(size.width, 0);
+    }
 
-    // Rounded corner kanan atas
-    path.quadraticBezierTo(
-      size.width, 0,
-      size.width, cornerRadius,
-    );
-
-    // Tutup ke bawah
+    // ── 4. Tutup path di bagian bawah ──
     path.lineTo(size.width, size.height);
     path.lineTo(0, size.height);
     path.close();
@@ -299,6 +324,7 @@ class _LiquidNavPainter extends CustomPainter {
   @override
   bool shouldRepaint(_LiquidNavPainter oldDelegate) {
     return oldDelegate.activePosition != activePosition ||
-        oldDelegate.color != color;
+        oldDelegate.color != color ||
+        oldDelegate.horizontalPadding != horizontalPadding;
   }
 }

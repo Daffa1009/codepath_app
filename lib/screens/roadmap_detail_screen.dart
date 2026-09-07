@@ -36,11 +36,15 @@ class RoadmapDetailScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 12),
-                Text(roadmap.title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(color: Colors.white, fontSize: 22)),
+                Text(
+                  roadmap.title,
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(color: Colors.white, fontSize: 22),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
               ],
             ),
           ),

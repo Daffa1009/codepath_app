@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../providers/bidang_provider.dart';
 import '../providers/roadmap_provider.dart';
 import '../providers/task_provider.dart';
 import '../providers/progress_provider.dart';
 import '../services/auth_result.dart';
 import '../widgets/liquid_nav_bar.dart';
+import 'bidang_list_screen.dart';
 import 'home_screen.dart';
 import 'roadmap_list_screen.dart';
-import 'task_list_screen.dart';
 import 'progress_screen.dart';
 
 /// Shell utama aplikasi setelah login — menampung 4 tab:
@@ -29,7 +30,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
   static const _navItems = [
     LiquidNavItem(icon: Icons.home_rounded, label: 'Beranda'),
     LiquidNavItem(icon: Icons.collections_bookmark_rounded, label: 'Jalur Belajar'),
-    LiquidNavItem(icon: Icons.check_circle_rounded, label: 'Latihan'),
+    LiquidNavItem(icon: Icons.category_rounded, label: 'Bidang'),
     LiquidNavItem(icon: Icons.bar_chart_rounded, label: 'Progress'),
   ];
 
@@ -48,6 +49,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
       context.read<RoadmapProvider>().loadData(),
       context.read<TaskProvider>().loadData(),
       context.read<ProgressProvider>().loadData(),
+      context.read<BidangProvider>().loadData(),
     ]);
   }
 
@@ -59,7 +61,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
         username: widget.user?.username ?? '',
       ),
       const RoadmapListScreen(),
-      const TaskListScreen(),
+      const BidangListScreen(),
       const ProgressScreen(),
     ];
 

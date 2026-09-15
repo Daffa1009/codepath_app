@@ -12,6 +12,7 @@ class Roadmap {
   final Color iconColor;
   final IconData icon;
   final List<RoadmapItem> items;
+  final String? bidangId;
 
   Roadmap({
     required this.id,
@@ -20,6 +21,7 @@ class Roadmap {
     required this.iconColor,
     required this.icon,
     required this.items,
+    this.bidangId,
   });
 
   int get completedCount => items.where((e) => e.isCompleted).length;

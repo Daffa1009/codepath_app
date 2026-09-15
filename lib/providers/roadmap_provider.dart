@@ -55,7 +55,7 @@ class RoadmapProvider extends ChangeNotifier {
       // 1. Fetch semua roadmaps
       final roadmapRows = await _client
           .from('roadmaps')
-          .select('id, title, description, icon_name')
+          .select('id, title, description, icon_name, bidang_id')
           .order('created_at');
 
       // 2. Fetch semua roadmap_items
@@ -109,6 +109,7 @@ class RoadmapProvider extends ChangeNotifier {
           iconColor: _iconNameToColor(iconName),
           icon: _iconNameToData(iconName),
           items: items,
+          bidangId: rRow['bidang_id'] as String?,
         ));
       }
 
@@ -163,11 +164,13 @@ class RoadmapProvider extends ChangeNotifier {
     required String title,
     required String description,
     required String iconName,
+    String? bidangId,
   }) async {
     await _client.from('roadmaps').insert({
       'title': title,
       'description': description,
       'icon_name': iconName,
+      if (bidangId != null) 'bidang_id': bidangId,
     });
   }
 
@@ -176,11 +179,13 @@ class RoadmapProvider extends ChangeNotifier {
     required String title,
     required String description,
     required String iconName,
+    String? bidangId,
   }) async {
     await _client.from('roadmaps').update({
       'title': title,
       'description': description,
       'icon_name': iconName,
+      'bidang_id': bidangId,
     }).eq('id', id);
   }
 

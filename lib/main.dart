@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'config/supabase_config.dart';
 import 'config/theme.dart';
+import 'providers/bidang_provider.dart';
 import 'providers/progress_provider.dart';
 import 'providers/roadmap_provider.dart';
 import 'providers/task_provider.dart';
@@ -50,6 +51,7 @@ class CodePathApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => RoadmapProvider()),
         ChangeNotifierProvider(create: (_) => TaskProvider()),
         ChangeNotifierProvider(create: (_) => ProgressProvider()),
+        ChangeNotifierProvider(create: (_) => BidangProvider()),
       ],
       child: MaterialApp(
         title: 'CodePath',

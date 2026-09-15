@@ -14,12 +14,28 @@ class AdminRoadmapListScreen extends StatefulWidget {
 
 class _AdminRoadmapListScreenState extends State<AdminRoadmapListScreen> {
   List<Map<String, dynamic>> _roadmaps = [];
+  List<Map<String, dynamic>> _bidangList = [];
   bool _loading = true;
 
   @override
   void initState() {
     super.initState();
     _loadRoadmaps();
+    _loadBidang();
+  }
+
+  Future<void> _loadBidang() async {
+    try {
+      final rows = await Supabase.instance.client
+          .from('bidang')
+          .select('id, nama')
+          .order('sort_order');
+      if (mounted) {
+        setState(() {
+          _bidangList = List<Map<String, dynamic>>.from(rows);
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _loadRoadmaps() async {
@@ -28,7 +44,7 @@ class _AdminRoadmapListScreenState extends State<AdminRoadmapListScreen> {
       // Fetch roadmaps sekaligus count videonya pakai subquery Supabase
       final rows = await Supabase.instance.client
           .from('roadmaps')
-          .select('id, title, description, icon_name, roadmap_items(count)')
+          .select('id, title, description, icon_name, bidang_id, roadmap_items(count)')
           .order('created_at');
       setState(() {
         _roadmaps = List<Map<String, dynamic>>.from(rows);
@@ -67,6 +83,7 @@ class _AdminRoadmapListScreenState extends State<AdminRoadmapListScreen> {
         text: existing?['description'] as String? ?? '');
     String selectedIcon =
         existing?['icon_name'] as String? ?? 'code';
+    String? selectedBidangId = existing?['bidang_id'] as String?;
 
     showDialog(
       context: context,
@@ -134,6 +151,34 @@ class _AdminRoadmapListScreenState extends State<AdminRoadmapListScreen> {
                     }
                   },
                 ),
+                const SizedBox(height: 16),
+                const Text('Bidang',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String?>(
+                  initialValue: selectedBidangId,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: AppColors.inputBackground,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(AppRadius.pill),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  items: [
+                    const DropdownMenuItem<String?>(
+                      value: null,
+                      child: Text('— Tidak ada bidang —'),
+                    ),
+                    ..._bidangList.map((b) => DropdownMenuItem<String?>(
+                          value: b['id'] as String,
+                          child: Text(b['nama'] as String),
+                        )),
+                  ],
+                  onChanged: (v) {
+                    setDialogState(() => selectedBidangId = v);
+                  },
+                ),
               ],
             ),
           ),
@@ -163,6 +208,7 @@ class _AdminRoadmapListScreenState extends State<AdminRoadmapListScreen> {
                       'title': title,
                       'description': descCtrl.text.trim(),
                       'icon_name': selectedIcon,
+                      'bidang_id': selectedBidangId,
                     });
                     _showSnack('Roadmap berhasil ditambahkan.');
                   } else {
@@ -172,6 +218,7 @@ class _AdminRoadmapListScreenState extends State<AdminRoadmapListScreen> {
                           'title': title,
                           'description': descCtrl.text.trim(),
                           'icon_name': selectedIcon,
+                          'bidang_id': selectedBidangId,
                         })
                         .eq('id', existing['id'] as String);
                     _showSnack('Roadmap berhasil diperbarui.');

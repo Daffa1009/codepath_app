@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+ import 'package:provider/provider.dart';
 import '../../config/theme.dart';
 import '../../providers/user_provider.dart';
 import '../../services/auth_service.dart';
 import '../login_screen.dart';
+import 'admin_bidang_screen.dart';
 import 'admin_roadmap_list_screen.dart';
 import 'admin_task_list_screen.dart';
 
@@ -70,6 +71,18 @@ class AdminHomeScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 children: [
+                _MenuCard(
+                    icon: Icons.category_rounded,
+                    iconColor: const Color(0xFF1A73E8),
+                    title: 'Kelola Bidang',
+                    subtitle: 'Tambah, edit, atau hapus kategori bidang ilmu',
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const AdminBidangScreen()),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   _MenuCard(
                     icon: Icons.collections_bookmark_rounded,
                     iconColor: AppColors.gold,
@@ -89,9 +102,6 @@ class AdminHomeScreen extends StatelessWidget {
                     title: 'Kelola Video',
                     subtitle: 'Atur video dalam setiap roadmap',
                     onTap: () {
-                      // Navigasi ke admin roadmap list, tapi ini langsung
-                      // menuju tampilan video. Untuk sementara arahkan
-                      // ke roadmap list saja.
                       Navigator.push(
                         context,
                         MaterialPageRoute(

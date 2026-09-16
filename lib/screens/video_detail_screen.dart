@@ -8,8 +8,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:web/web.dart' as web;
 import 'dart:ui_web' as ui;
 
-import 'package:pointer_interceptor/pointer_interceptor.dart';
-
 import '../config/theme.dart';
 import '../models/roadmap_item.dart';
 import '../models/chapter_item.dart';
@@ -48,20 +46,10 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
   bool _chaptersLoading = true;
   int? _activeChapterSeconds; // null = no active chapter
 
-  // State AI Assistant — history disimpan di lokal state sehingga otomatis
-  // terhapus saat user keluar dari halaman.
-  final List<Map<String, String>> _chatHistory = [];
-  bool _isAiLoading = false;
-  final TextEditingController _questionController = TextEditingController();
-  final ScrollController _chatScrollController = ScrollController();
-
+  // State AI Assistant dipindahkan ke _AIChatBottomSheet
   // Floating Chat Widget State
-  bool _isChatOpen = false;
   late AnimationController _fabScaleController;
   late AnimationController _pulseController;
-
-  /// Batas maksimum pertanyaan user per sesi.
-  static const int _maxUserMessages = 20;
 
   @override
   void initState() {
@@ -110,8 +98,6 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
 
   @override
   void dispose() {
-    _questionController.dispose();
-    _chatScrollController.dispose();
     _fabScaleController.dispose();
     _pulseController.dispose();
     super.dispose();
@@ -173,131 +159,9 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
     }
   }
 
-  /// Kirim pertanyaan user ke AI Assistant via Supabase Edge Function.
-  Future<void> _sendQuestion() async {
-    final question = _questionController.text.trim();
-    if (question.isEmpty || _isAiLoading) return;
-
-    final userMessageCount =
-        _chatHistory.where((msg) => msg['role'] == 'user').length;
-
-    if (userMessageCount >= _maxUserMessages) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Batas maksimum 20 pertanyaan per sesi telah tercapai.',
-          ),
-        ),
-      );
-      return;
-    }
-
-    setState(() {
-      _chatHistory.add({'role': 'user', 'content': question});
-      _isAiLoading = true;
-    });
-    _questionController.clear();
-    _scrollToBottom();
-
-    try {
-      debugPrint('[AI] sending question: "$question"');
-      final response = await Supabase.instance.client.functions
-          .invoke(
-            'ai-assistant',
-            body: {
-              'question': question,
-              'videoTitle': widget.item.title,
-              'channelName': widget.item.channelName,
-              'chapters': _chapters
-                  .map((c) => {
-                        'title': c.title,
-                        'startTime': c.startTime,
-                      })
-                  .toList(),
-            },
-          )
-          .timeout(
-            const Duration(seconds: 90),
-            onTimeout: () => throw TimeoutException(
-              'AI tidak merespons dalam 90 detik. Coba lagi.',
-            ),
-          );
-
-      debugPrint('[AI] response status: ${response.status}');
-      final answer = response.data['answer'] as String;
-
-      if (!mounted) return;
-      setState(() {
-        _chatHistory.add({'role': 'assistant', 'content': answer});
-        _isAiLoading = false;
-      });
-      _scrollToBottom();
-    } catch (e, st) {
-      debugPrint('[AI] ERROR: $e');
-      debugPrint('[AI] stack: $st');
-      if (!mounted) return;
-
-      String message = 'Maaf, terjadi kesalahan. Silakan coba lagi.';
-      if (e is FunctionException) {
-        debugPrint(
-            '[AI] FunctionException: status=${e.status}, details=${e.details}');
-        message = 'AI gagal (${e.status}): ${e.details ?? ''}';
-      } else if (e is TimeoutException) {
-        message = e.message ?? message;
-      } else {
-        message = 'AI gagal: $e';
-      }
-      setState(() {
-        _chatHistory.add({'role': 'assistant', 'content': message});
-        _isAiLoading = false;
-      });
-    }
-  }
-
-  /// Auto-scroll chat ke bawah saat ada pesan baru.
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_chatScrollController.hasClients) {
-        _chatScrollController.animateTo(
-          _chatScrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  /// Tiga titik teal dengan opacity naik — indikator AI sedang mengetik.
-  Widget _buildTypingIndicator() {
-    return Row(
-      children: List.generate(
-        3,
-        (i) => TweenAnimationBuilder<double>(
-          tween: Tween(begin: 0.0, end: 1.0),
-          duration: Duration(milliseconds: 600 + (i * 100)),
-          builder: (context, value, child) {
-            return Container(
-              margin: const EdgeInsets.symmetric(horizontal: 2),
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color:
-                    AppColors.primaryTeal.withValues(alpha: 0.5 + value * 0.5),
-                shape: BoxShape.circle,
-              ),
-            );
-          },
-        ),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    final panelWidth = (screenWidth * 0.85).clamp(280.0, 380.0);
-    final panelHeight = screenHeight * 0.68;
     const fabSize = 56.0;
 
     return Scaffold(
@@ -308,12 +172,7 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
       body: Stack(
         children: [
           SafeArea(
-            // IgnorePointer: saat panel terbuka, konten di belakangnya (YouTube
-            // iframe, chapter tiles, tombol YT, dst) tidak menerima tap.
-            // Ini mencegah event bocor ke player YT dan chapter "loncat menit".
-            child: IgnorePointer(
-              ignoring: _isChatOpen,
-              child: SingleChildScrollView(
+            child: SingleChildScrollView(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -351,18 +210,14 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
                           // === AREA VIDEO: embed iframe di web, fallback di mobile ===
                           if (kIsWeb && _videoId != null)
                             // YouTube embed di web
-                            PointerInterceptor(
-                              // Intercept klik saat chat AI terbuka agar tidak bocor ke iframe
-                              intercepting: _isChatOpen,
-                              child: ClipRRect(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.card),
-                                child: SizedBox(
-                                  height: 220,
-                                  width: double.infinity,
-                                  child: HtmlElementView(
-                                      viewType: _viewId),
-                                ),
+                            ClipRRect(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.card),
+                              child: SizedBox(
+                                height: 220,
+                                width: double.infinity,
+                                child: HtmlElementView(
+                                    viewType: _viewId),
                               ),
                             )
                           else if (kIsWeb && _videoId == null)
@@ -518,48 +373,12 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
                 ),
               ),
             ),
-          ),
-
-          // === OVERLAY BARRIER (modal-style) ===
-          // ModalBarrier menangkap semua pointer event agar tidak ada
-          // yang lolos ke video / chapter di belakangnya. dismissible=true
-          // artinya tap pada barrier = tutup panel.
-          if (_isChatOpen)
-            ModalBarrier(
-              color: Colors.black.withValues(alpha: 0.3),
-              dismissible: true,
-              onDismiss: () => setState(() => _isChatOpen = false),
-            ),
-
-          // === CHAT PANEL (slide dari kanan) ===
-          // Ditaruh SETELAH barrier agar menerima event, dan posisinya
-          // hanya men-cover sebagian layar (panel kecil), jadi area di
-          // luar panel akan tetap tertutup barrier & tidak bocor.
-          AnimatedPositioned(
-            duration: const Duration(milliseconds: 300),
-            curve: Curves.easeOutCubic,
-            right: _isChatOpen ? 16 : -panelWidth - 16,
-            bottom: 80,
-            width: panelWidth,
-            height: panelHeight,
-            child: IgnorePointer(
-              // AbsorbPointer diaktifkan saat tertutup, agar event tidak
-              // bocor ke panel tersembunyi di luar layar.
-              ignoring: !_isChatOpen,
-              child: _buildChatPanel(),
-            ),
-          ),
 
           // === FLOATING ACTION BUTTON ===
-          // IgnorePointer saat tertutup agar tidak mengganggu konten
-          // di belakangnya (sangat kecil kemungkinannya, tapi aman).
           Positioned(
             right: 16,
             bottom: 16,
-            child: IgnorePointer(
-              ignoring: _isChatOpen,
-              child: _buildFloatingButton(fabSize),
-            ),
+            child: _buildFloatingButton(fabSize),
           ),
         ],
       ),
@@ -576,15 +395,23 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
         ),
       ),
       child: GestureDetector(
-        onTap: () => setState(() => _isChatOpen = !_isChatOpen),
+        onTap: () {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => _AIChatBottomSheet(
+              item: widget.item,
+              chapters: _chapters,
+            ),
+          );
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           width: size,
           height: size,
           decoration: BoxDecoration(
-            color: _isChatOpen
-                ? AppColors.primaryTeal.withValues(alpha: 0.7)
-                : AppColors.primaryTeal,
+            color: AppColors.primaryTeal,
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
@@ -598,328 +425,34 @@ class _VideoDetailScreenState extends State<VideoDetailScreen>
             alignment: Alignment.center,
             children: [
               // Pulse ring animation
-              if (!_isChatOpen)
-                AnimatedBuilder(
-                  animation: _pulseController,
-                  builder: (context, child) {
-                    final value = 0.8 + (_pulseController.value * 0.6);
-                    return Container(
-                      width: size * value,
-                      height: size * value,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.primaryTeal.withValues(
-                              alpha: (1.5 - value).clamp(0.0, 1.0)),
-                          width: 2,
-                        ),
+              AnimatedBuilder(
+                animation: _pulseController,
+                builder: (context, child) {
+                  final value = 0.8 + (_pulseController.value * 0.6);
+                  return Container(
+                    width: size * value,
+                    height: size * value,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: AppColors.primaryTeal.withValues(
+                            alpha: (1.5 - value).clamp(0.0, 1.0)),
+                        width: 2,
                       ),
-                    );
-                  },
-                ),
-
-              // Icon berubah saat terbuka/tertutup
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 200),
-                child: Icon(
-                  _isChatOpen ? Icons.close : Icons.auto_awesome,
-                  key: ValueKey(_isChatOpen),
-                  color: Colors.white,
-                  size: 24,
-                ),
+                    ),
+                  );
+                },
               ),
 
-              // Badge "AI" di pojok kanan atas
-              if (!_isChatOpen)
-                Positioned(
-                  right: 6,
-                  top: 6,
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: AppColors.gold,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: const Text(
-                      'AI',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 8,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
+              // Icon
+              const Icon(
+                Icons.auto_awesome,
+                color: Colors.white,
+                size: 24,
+              ),
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  /// CHAT PANEL WIDGET
-  Widget _buildChatPanel() {
-    return Material(
-      elevation: 12,
-      borderRadius: BorderRadius.circular(16),
-      shadowColor: Colors.black.withValues(alpha: 0.2),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          children: [
-            // Header (teal)
-            Container(
-              color: AppColors.primaryTeal,
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(Icons.auto_awesome,
-                        color: Colors.white, size: 16),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'AI Assistant',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 14,
-                          ),
-                        ),
-                        Text(
-                          widget.item.title,
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 11,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon:
-                        const Icon(Icons.close, color: Colors.white, size: 20),
-                    onPressed: () => setState(() => _isChatOpen = false),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-            ),
-
-            // Body (chat area)
-            Expanded(
-              child: Container(
-                color: Colors.grey.shade50,
-                child: _buildChatBody(),
-              ),
-            ),
-
-            // Footer (input)
-            Container(
-              color: Colors.white,
-              child: _buildChatInput(),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// CHAT BODY - riwayat + suggested questions + typing indicator
-  Widget _buildChatBody() {
-    return ListView(
-      controller: _chatScrollController,
-      padding: const EdgeInsets.all(12),
-      children: [
-        if (_chatHistory.isNotEmpty) ...[
-          ..._chatHistory.map((msg) => _buildChatBubble(msg)),
-          if (_isAiLoading) _buildTypingBubble(),
-        ],
-        if (_chatHistory.isEmpty) _buildSuggestedQuestions(),
-      ],
-    );
-  }
-
-  /// Single chat bubble
-  Widget _buildChatBubble(Map<String, String> msg) {
-    final isUser = msg['role'] == 'user';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment:
-            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
-        children: [
-          if (!isUser) ...[
-            const CircleAvatar(
-              radius: 16,
-              backgroundColor: AppColors.primaryTeal,
-              child: Icon(
-                Icons.auto_awesome,
-                color: Colors.white,
-                size: 14,
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 10,
-              ),
-              decoration: BoxDecoration(
-                color: isUser ? AppColors.primaryTeal : Colors.white,
-                borderRadius: BorderRadius.circular(14),
-                border: isUser
-                    ? null
-                    : Border.all(color: Colors.grey.shade200),
-              ),
-              child: SelectableText(
-                msg['content']!,
-                style: TextStyle(
-                  color: isUser ? Colors.white : Colors.black87,
-                  fontSize: 13,
-                  height: 1.5,
-                ),
-              ),
-            ),
-          ),
-          if (isUser) const SizedBox(width: 8),
-        ],
-      ),
-    );
-  }
-
-  /// Typing indicator bubble
-  Widget _buildTypingBubble() {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const CircleAvatar(
-          radius: 16,
-          backgroundColor: AppColors.primaryTeal,
-          child: Icon(
-            Icons.auto_awesome,
-            color: Colors.white,
-            size: 14,
-          ),
-        ),
-        const SizedBox(width: 8),
-        _buildTypingIndicator(),
-      ],
-    );
-  }
-
-  /// Suggested questions chips (saat chat kosong)
-  Widget _buildSuggestedQuestions() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          'Jelaskan konsep utama video ini',
-          'Berikan contoh penggunaan',
-          'Apa yang harus dipelajari selanjutnya?',
-        ].map((q) => GestureDetector(
-              onTap: () {
-                _questionController.text = q;
-                _sendQuestion();
-              },
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryTeal.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: AppColors.primaryTeal.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Text(
-                  q,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppColors.primaryTeal,
-                  ),
-                ),
-              ),
-            )).toList(),
-      ),
-    );
-  }
-
-  /// CHAT INPUT FOOTER
-  Widget _buildChatInput() {
-    return Padding(
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _questionController,
-              maxLines: null,
-              keyboardType: TextInputType.multiline,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _sendQuestion(),
-              decoration: InputDecoration(
-                hintText: 'Tanyakan sesuatu tentang materi ini...',
-                hintStyle: TextStyle(
-                  fontSize: 13,
-                  color: Colors.grey.shade400,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  borderSide: BorderSide.none,
-                ),
-                filled: true,
-                fillColor: Colors.grey.shade100,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          GestureDetector(
-            onTap: _isAiLoading ? null : _sendQuestion,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: _isAiLoading
-                    ? Colors.grey.shade300
-                    : AppColors.primaryTeal,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.send_rounded,
-                color: Colors.white,
-                size: 20,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -1113,6 +646,435 @@ class _AnimatedYoutubeButtonState extends State<_AnimatedYoutubeButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _AIChatBottomSheet extends StatefulWidget {
+  final RoadmapItem item;
+  final List<ChapterItem> chapters;
+
+  const _AIChatBottomSheet({
+    required this.item,
+    required this.chapters,
+  });
+
+  @override
+  State<_AIChatBottomSheet> createState() => _AIChatBottomSheetState();
+}
+
+class _AIChatBottomSheetState extends State<_AIChatBottomSheet> {
+  final List<Map<String, String>> _chatHistory = [];
+  bool _isAiLoading = false;
+  final TextEditingController _questionController = TextEditingController();
+  ScrollController? _sheetScrollController;
+
+  static const int _maxUserMessages = 20;
+
+  @override
+  void dispose() {
+    _questionController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_sheetScrollController?.hasClients ?? false) {
+        _sheetScrollController!.animateTo(
+          _sheetScrollController!.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
+  }
+
+  Future<void> _sendQuestion() async {
+    final question = _questionController.text.trim();
+    if (question.isEmpty || _isAiLoading) return;
+
+    final userMessageCount =
+        _chatHistory.where((msg) => msg['role'] == 'user').length;
+
+    if (userMessageCount >= _maxUserMessages) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Batas maksimum 20 pertanyaan per sesi telah tercapai.',
+            ),
+          ),
+        );
+      }
+      return;
+    }
+
+    setState(() {
+      _chatHistory.add({'role': 'user', 'content': question});
+      _isAiLoading = true;
+    });
+    _questionController.clear();
+    _scrollToBottom();
+
+    try {
+      final response = await Supabase.instance.client.functions
+          .invoke(
+            'ai-assistant',
+            body: {
+              'question': question,
+              'videoTitle': widget.item.title,
+              'channelName': widget.item.channelName,
+              'chapters': widget.chapters
+                  .map((c) => {
+                        'title': c.title,
+                        'startTime': c.startTime,
+                      })
+                  .toList(),
+            },
+          )
+          .timeout(
+            const Duration(seconds: 90),
+            onTimeout: () => throw TimeoutException(
+              'AI tidak merespons dalam 90 detik. Coba lagi.',
+            ),
+          );
+
+      final answer = response.data['answer'] as String;
+
+      if (!mounted) return;
+      setState(() {
+        _chatHistory.add({'role': 'assistant', 'content': answer});
+        _isAiLoading = false;
+      });
+      _scrollToBottom();
+    } catch (e) {
+      if (!mounted) return;
+      String message = 'Maaf, terjadi kesalahan. Silakan coba lagi.';
+      if (e is FunctionException) {
+        message = 'AI gagal (${e.status}): ${e.details ?? ''}';
+      } else if (e is TimeoutException) {
+        message = e.message ?? message;
+      } else {
+        message = 'AI gagal: $e';
+      }
+      setState(() {
+        _chatHistory.add({'role': 'assistant', 'content': message});
+        _isAiLoading = false;
+      });
+      _scrollToBottom();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return DraggableScrollableSheet(
+      initialChildSize: 0.55,
+      minChildSize: 0.3,
+      maxChildSize: 0.85,
+      snap: true,
+      snapSizes: const [0.3, 0.55, 0.85],
+      builder: (context, scrollController) {
+        _sheetScrollController = scrollController;
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.15),
+                blurRadius: 20,
+                offset: const Offset(0, -4),
+              )
+            ],
+          ),
+          child: Column(
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  margin: const EdgeInsets.only(top: 12, bottom: 8),
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryTeal,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.auto_awesome, 
+                        color: Colors.white, size: 16),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text('AI Assistant',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                              color: Colors.black87,
+                            )),
+                          Text(
+                            widget.item.title,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: Colors.grey.shade500,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 20),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ],
+                ),
+              ),
+
+              Divider(height: 1, color: Colors.grey.shade200),
+
+              // Chat area (scrollable)
+              Expanded(
+                child: ListView(
+                  controller: scrollController,
+                  padding: const EdgeInsets.all(16),
+                  children: [
+                    // AI greeting (kalau chat kosong)
+                    if (_chatHistory.isEmpty) ...[
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const CircleAvatar(
+                            radius: 16,
+                            backgroundColor: AppColors.primaryTeal,
+                            child: Icon(Icons.auto_awesome,
+                              color: Colors.white, size: 14),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.all(12),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade50,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: Colors.grey.shade200),
+                              ),
+                              child: Text(
+                                'Halo! 👋 Apa yang ingin kamu pelajari dari materi ${widget.item.title} ini? 🚀\n\nSilakan tanyakan topik apa saja yang ingin kamu pahami lebih dalam.',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  height: 1.5,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      
+                      // Suggested questions chips
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          'Rangkum materi ini',
+                          'Berikan contoh penggunaan',
+                          'Apa prasyarat belajar ini?',
+                          'Topik lanjutan setelah ini?',
+                        ].map((q) => GestureDetector(
+                          onTap: () {
+                            _questionController.text = q;
+                            _sendQuestion();
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: Colors.grey.shade300),
+                            ),
+                            child: Text(q, style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.black87,
+                            )),
+                          ),
+                        )).toList(),
+                      ),
+                    ],
+
+                    // Chat history
+                    ..._chatHistory.map((msg) {
+                      final isUser = msg['role'] == 'user';
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: isUser
+                            ? MainAxisAlignment.end
+                            : MainAxisAlignment.start,
+                          children: [
+                            if (!isUser) ...[
+                              const CircleAvatar(
+                                radius: 14,
+                                backgroundColor: AppColors.primaryTeal,
+                                child: Icon(Icons.auto_awesome,
+                                  color: Colors.white, size: 12),
+                              ),
+                              const SizedBox(width: 8),
+                            ],
+                            Flexible(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: isUser
+                                    ? AppColors.primaryTeal
+                                    : Colors.grey.shade50,
+                                  borderRadius: BorderRadius.circular(14),
+                                  border: isUser ? null : Border.all(
+                                    color: Colors.grey.shade200),
+                                ),
+                                child: SelectableText(
+                                  msg['content']!,
+                                  style: TextStyle(
+                                    color: isUser
+                                      ? Colors.white
+                                      : Colors.black87,
+                                    fontSize: 13,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }),
+
+                    // Loading indicator
+                    if (_isAiLoading)
+                      Row(
+                        children: [
+                          const CircleAvatar(
+                            radius: 14,
+                            backgroundColor: AppColors.primaryTeal,
+                            child: Icon(Icons.auto_awesome,
+                              color: Colors.white, size: 12),
+                          ),
+                          const SizedBox(width: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: List.generate(3, (i) =>
+                                TweenAnimationBuilder<double>(
+                                  tween: Tween(begin: 0.0, end: 1.0),
+                                  duration: Duration(milliseconds: 600 + (i * 100)),
+                                  builder: (context, value, child) {
+                                    return Container(
+                                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                                      width: 6, height: 6,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryTeal.withValues(alpha: 0.5 + value * 0.5),
+                                        shape: BoxShape.circle,
+                                      ),
+                                    );
+                                  },
+                                )
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+
+              // Input field di bawah
+              Container(
+                padding: EdgeInsets.fromLTRB(
+                  16, 8, 16,
+                  MediaQuery.of(context).viewInsets.bottom + 12,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  border: Border(
+                    top: BorderSide(color: Colors.grey.shade200)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _questionController,
+                        maxLines: null,
+                        onSubmitted: (_) => _sendQuestion(),
+                        decoration: InputDecoration(
+                          hintText: 'Ajukan pertanyaan...',
+                          hintStyle: TextStyle(
+                            color: Colors.grey.shade400, fontSize: 13),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(24),
+                            borderSide: const BorderSide(
+                              color: AppColors.primaryTeal, width: 1.5),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 10),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    GestureDetector(
+                      onTap: _isAiLoading ? null : _sendQuestion,
+                      child: Container(
+                        width: 42, height: 42,
+                        decoration: BoxDecoration(
+                          color: _isAiLoading
+                            ? Colors.grey.shade300
+                            : AppColors.primaryTeal,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.send_rounded,
+                          color: Colors.white, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

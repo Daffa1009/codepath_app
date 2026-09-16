@@ -24,12 +24,33 @@ class _AdminBidangScreenState extends State<AdminBidangScreen> {
   Future<void> _loadBidang() async {
     setState(() => _loading = true);
     try {
-      final rows = await Supabase.instance.client
+      final bidangData = await Supabase.instance.client
           .from('bidang')
-          .select('*, roadmaps(count)')
+          .select()
           .order('sort_order');
+
+      final roadmapData = await Supabase.instance.client
+          .from('roadmaps')
+          .select('bidang_id')
+          .not('bidang_id', 'is', null);
+
+      final countMap = <String, int>{};
+      for (final r in roadmapData) {
+        final bid = r['bidang_id'] as String? ?? '';
+        if (bid.isNotEmpty) {
+          countMap[bid] = (countMap[bid] ?? 0) + 1;
+        }
+      }
+
+      final rows = (bidangData as List).map((item) {
+        return {
+          ...Map<String, dynamic>.from(item),
+          'roadmap_count': countMap[item['id'] as String] ?? 0,
+        };
+      }).toList();
+
       setState(() {
-        _bidangList = List<Map<String, dynamic>>.from(rows);
+        _bidangList = rows;
         _loading = false;
       });
     } catch (e) {
@@ -39,14 +60,7 @@ class _AdminBidangScreenState extends State<AdminBidangScreen> {
   }
 
   int _roadmapCount(Map<String, dynamic> row) {
-    final list = row['roadmaps'] as List?;
-    if (list != null && list.isNotEmpty) {
-      final first = list.first;
-      if (first is Map && first.containsKey('count')) {
-        return (first['count'] as num?)?.toInt() ?? 0;
-      }
-    }
-    return 0;
+    return row['roadmap_count'] as int? ?? 0;
   }
 
   void _showAddDialog() => _showBidangDialog(null);

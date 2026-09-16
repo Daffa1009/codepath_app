@@ -20,20 +20,32 @@ class BidangProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Fetch bidang + count roadmap per bidang via subquery
-      final data = await _client
+      // Query 1: ambil semua bidang
+      final bidangData = await _client
           .from('bidang')
-          .select('*, roadmaps(count)')
-          .order('sort_order');
+          .select()
+          .order('sort_order', ascending: true);
 
-      _bidangList = data.map<Bidang>((item) {
-        final roadmapsList = item['roadmaps'] as List?;
-        final roadmapCount = roadmapsList != null && roadmapsList.isNotEmpty
-            ? (roadmapsList.first as Map<String, dynamic>)['count'] as int? ?? 0
-            : 0;
+      // Query 2: hitung jumlah roadmap per bidang
+      final roadmapData = await _client
+          .from('roadmaps')
+          .select('bidang_id')
+          .not('bidang_id', 'is', null);
+
+      // Hitung manual pakai Map
+      final countMap = <String, int>{};
+      for (final r in roadmapData) {
+        final bid = r['bidang_id'] as String? ?? '';
+        if (bid.isNotEmpty) {
+          countMap[bid] = (countMap[bid] ?? 0) + 1;
+        }
+      }
+
+      // Gabungkan bidang + count
+      _bidangList = (bidangData as List).map((item) {
         return Bidang.fromMap({
-          ...item,
-          'roadmap_count': roadmapCount,
+          ...Map<String, dynamic>.from(item),
+          'roadmap_count': countMap[item['id'] as String] ?? 0,
         });
       }).toList();
     } catch (e) {

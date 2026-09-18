@@ -326,6 +326,213 @@ class _AdminChapterScreenState extends State<AdminChapterScreen> {
   }
 
   // ---------------------------------------------------------------
+  // TAMBAH BULK dialog
+  // ---------------------------------------------------------------
+  void _showBulkImportDialog() {
+    final textCtrl = TextEditingController();
+    List<ChapterItem> parsedChapters = [];
+    bool saving = false;
+    String? errorMsg;
+
+    // Format MM:SS atau HH:MM:SS di awal baris
+    final regex = RegExp(r'^(\d{1,2}):(\d{2})(?::(\d{2}))?\s*[-|]?\s*(.+)$');
+
+    void parseInput(String input) {
+      final lines = input.split('\n');
+      final newChapters = <ChapterItem>[];
+      int sortOrder = 1;
+
+      for (final line in lines) {
+        final match = regex.firstMatch(line.trim());
+        if (match != null) {
+          final group1 = match.group(1)!;
+          final group2 = match.group(2)!;
+          final group3 = match.group(3);
+          final title = match.group(4)!.trim();
+
+          int startTime = 0;
+          if (group3 == null) {
+            // MM:SS
+            startTime = (int.parse(group1) * 60) + int.parse(group2);
+          } else {
+            // HH:MM:SS
+            startTime = (int.parse(group1) * 3600) +
+                (int.parse(group2) * 60) +
+                int.parse(group3);
+          }
+
+          newChapters.add(ChapterItem(
+            id: '', // temporary
+            itemId: widget.itemId,
+            title: title,
+            startTime: startTime,
+            sortOrder: sortOrder++,
+          ));
+        }
+      }
+
+      parsedChapters = newChapters;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          Future<void> handleImport() async {
+            if (parsedChapters.isEmpty) {
+              setDialogState(() => errorMsg = 'Tidak ada timestamp valid ditemukan.');
+              return;
+            }
+            
+            setDialogState(() {
+              saving = true;
+              errorMsg = null;
+            });
+
+            try {
+              await _db.from('roadmap_item_chapters').insert(
+                    parsedChapters
+                        .map((c) => {
+                              'item_id': c.itemId,
+                              'title': c.title,
+                              'start_time': c.startTime,
+                              'sort_order': c.sortOrder,
+                            })
+                        .toList(),
+                  );
+
+              if (ctx.mounted) Navigator.pop(ctx);
+              await _fetchChapters();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Berhasil import ${parsedChapters.length} chapter!'),
+                    backgroundColor: AppColors.primaryTeal,
+                  ),
+                );
+              }
+            } catch (e) {
+              setDialogState(() {
+                saving = false;
+                errorMsg = 'Gagal menyimpan: $e';
+              });
+            }
+          }
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Import Poin Materi (Bulk)',
+                style: TextStyle(fontWeight: FontWeight.w700, color: AppColors.primaryTeal)),
+            content: SizedBox(
+              width: MediaQuery.of(context).size.width * 0.9,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Paste timestamp dari deskripsi YouTube atau ketik manual.\n'
+                      'Format yang didukung:\n'
+                      '- 00:00 Judul materi\n'
+                      '- 0:00:00 Judul materi\n'
+                      '- 00:00 - Judul materi\n'
+                      '- 00:00 | Judul materi',
+                      style: TextStyle(fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Contoh:\n'
+                      '00:00 Pengenalan\n'
+                      '05:30 Instalasi Tools\n'
+                      '15:00 Membuat Project\n'
+                      '45:20 Routing Dasar',
+                      style: TextStyle(color: Colors.grey, fontSize: 11),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: textCtrl,
+                      maxLines: null,
+                      minLines: 8,
+                      style: const TextStyle(fontFamily: 'monospace', fontSize: 13),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: AppColors.background,
+                        hintText: 'Paste di sini...',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                      onChanged: (value) {
+                        setDialogState(() {
+                          parseInput(value);
+                          errorMsg = null;
+                        });
+                      },
+                    ),
+                    if (errorMsg != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: Text(errorMsg!,
+                            style: const TextStyle(color: AppColors.maroon, fontSize: 13)),
+                      ),
+                    if (textCtrl.text.trim().isNotEmpty && parsedChapters.isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      const Text('Preview:', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                      const SizedBox(height: 6),
+                      ...parsedChapters.take(3).map(
+                            (c) => Text(
+                              '✓ ${c.timeLabel} - ${c.title}',
+                              style: const TextStyle(color: AppColors.primaryTeal, fontSize: 12),
+                            ),
+                          ),
+                      if (parsedChapters.length > 3)
+                        Text(
+                          '... dan ${parsedChapters.length - 3} lainnya',
+                          style: const TextStyle(color: AppColors.primaryTeal, fontSize: 12),
+                        ),
+                    ],
+                    if (textCtrl.text.trim().isNotEmpty && parsedChapters.isEmpty) ...[
+                      const SizedBox(height: 12),
+                      const Text(
+                        '✗ baris tidak valid / tidak ada timestamp valid',
+                        style: TextStyle(color: AppColors.maroon, fontSize: 12),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: saving ? null : () => Navigator.pop(ctx),
+                child: const Text('Batal', style: TextStyle(color: AppColors.textMuted)),
+              ),
+              ElevatedButton(
+                onPressed: (saving || textCtrl.text.trim().isEmpty) ? null : handleImport,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryTeal,
+                  foregroundColor: Colors.white,
+                  shape: const StadiumBorder(),
+                ),
+                child: saving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text('Import ${parsedChapters.length} Chapter'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------
   // BUILD
   // ---------------------------------------------------------------
   @override
@@ -342,6 +549,14 @@ class _AdminChapterScreenState extends State<AdminChapterScreen> {
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back, color: Colors.white),
         ),
+        actions: [
+          TextButton.icon(
+            onPressed: _showBulkImportDialog,
+            icon: const Icon(Icons.playlist_add, color: Colors.white),
+            label: const Text('Import Bulk', style: TextStyle(color: Colors.white)),
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: _loading
           ? const Center(

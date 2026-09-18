@@ -59,6 +59,7 @@ class _MainNavScreenState extends State<MainNavScreen> {
       HomeScreen(
         namaLengkap: widget.user?.namaLengkap ?? '',
         username: widget.user?.username ?? '',
+        onTabChange: (index) => setState(() => _index = index),
       ),
       const RoadmapListScreen(),
       const BidangListScreen(),

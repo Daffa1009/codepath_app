@@ -9,6 +9,7 @@ import 'providers/roadmap_provider.dart';
 import 'providers/task_provider.dart';
 import 'providers/user_provider.dart';
 import 'screens/splash_screen.dart';
+import 'screens/username_setup_screen.dart';
 import 'services/auth_result.dart';
 import 'services/auth_service.dart';
 
@@ -22,24 +23,38 @@ void main() async {
 
   final session = Supabase.instance.client.auth.currentSession;
   AuthResult? currentUser;
+  bool isNewGoogleUser = false;
 
   if (session != null) {
     try {
       currentUser = await AuthService.getCurrentUser();
+      if (currentUser == null) {
+        // Ada session tapi tidak ada profile row → Google user baru
+        isNewGoogleUser = true;
+      }
     } catch (_) {
-      // Gagal ambil detail user, log out untuk membersihkan session corrupt
+      // Session corrupt → sign out
       try {
         await Supabase.instance.client.auth.signOut();
       } catch (_) {}
     }
   }
 
-  runApp(CodePathApp(initialUser: currentUser));
+  runApp(CodePathApp(
+    initialUser: currentUser,
+    isNewGoogleUser: isNewGoogleUser,
+  ));
 }
 
 class CodePathApp extends StatelessWidget {
   final AuthResult? initialUser;
-  const CodePathApp({super.key, this.initialUser});
+  final bool isNewGoogleUser;
+
+  const CodePathApp({
+    super.key,
+    this.initialUser,
+    this.isNewGoogleUser = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +72,9 @@ class CodePathApp extends StatelessWidget {
         title: 'CodePath',
         debugShowCheckedModeBanner: false,
         theme: buildAppTheme(),
-        home: SplashScreen(currentUser: initialUser),
+        home: isNewGoogleUser
+            ? const UsernameSetupScreen()
+            : SplashScreen(currentUser: initialUser),
       ),
     );
   }

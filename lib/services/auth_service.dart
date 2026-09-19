@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_result.dart';
 
@@ -226,7 +227,8 @@ class AuthService {
   static bool get isLoggedIn => _client.auth.currentUser != null;
 
   /// Ambil AuthResult dari session yang sedang aktif.
-  /// Return null jika tidak ada session.
+  /// Return null jika tidak ada session atau belum punya profile row
+  /// (misalnya Google user baru yang belum setup username).
   static Future<AuthResult?> getCurrentUser() async {
     final user = _client.auth.currentUser;
     if (user == null) return null;
@@ -245,6 +247,25 @@ class AuthService {
       username: profileResponse['username'] as String,
       namaLengkap: profileResponse['nama_lengkap'] as String? ?? '',
       avatarUrl: profileResponse['avatar_url'] as String?,
+    );
+  }
+
+  /// Alias for getCurrentUser() — dipakai setelah OAuth callback
+  /// untuk membedakan user baru (null) vs user lama (ada profile).
+  static Future<AuthResult?> getCurrentUserFromSession() =>
+      getCurrentUser();
+
+  /// Login menggunakan Google OAuth (web: redirect, mobile: external browser).
+  /// Untuk web, kita memaksa redirect dengan mengirimkan URL Vercel
+  /// agar terhindar dari pemblokiran di WebView/in-app browser Google.
+  static Future<void> signInWithGoogle() async {
+    await _client.auth.signInWithOAuth(
+      OAuthProvider.google,
+      redirectTo: kIsWeb 
+    ? (kReleaseMode 
+        ? 'https://codepath-app.my.id' 
+        : 'http://localhost:3000/') 
+    : null,
     );
   }
 }

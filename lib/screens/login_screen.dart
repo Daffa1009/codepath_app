@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../config/theme.dart';
@@ -154,6 +155,29 @@ class _LoginScreenState extends State<LoginScreen> {
     } catch (e) {
       setState(() => _loading = false);
       _showInlineError('Terjadi kesalahan. Silakan coba lagi.');
+    }
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _loading = true);
+    try {
+      await AuthService.signInWithGoogle();
+      // Web: redirect otomatis oleh Supabase — halaman berpindah, tidak perlu
+      // navigasi manual. Mobile: deep link akan ditangani oleh onAuthStateChange.
+      // Jika tidak redirect (error silent), pastikan loading state direset.
+      if (mounted && !kIsWeb) {
+        setState(() => _loading = false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal login dengan Google: ${e.toString()}'),
+            backgroundColor: AppColors.maroon,
+          ),
+        );
+      }
     }
   }
 
@@ -427,6 +451,10 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         const SizedBox(height: 28),
         _buildGradientButton('Login', _handleSubmit),
+        const SizedBox(height: 20),
+        _buildGoogleDivider(),
+        const SizedBox(height: 16),
+        _buildGoogleButton(),
       ],
     );
   }
@@ -514,6 +542,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
         const SizedBox(height: 28),
         _buildGradientButton('Register', _handleSubmit),
+        const SizedBox(height: 20),
+        _buildGoogleDivider(),
+        const SizedBox(height: 16),
+        _buildGoogleButton(),
       ],
     );
   }
@@ -560,6 +592,69 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+    );
+  }
+
+  Widget _buildGoogleDivider() {
+    return Row(
+      children: [
+        Expanded(child: Divider(color: Colors.grey.shade300)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: Text(
+            'atau',
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+          ),
+        ),
+        Expanded(child: Divider(color: Colors.grey.shade300)),
+      ],
+    );
+  }
+
+  Widget _buildGoogleButton() {
+    return GestureDetector(
+      onTap: _loading ? null : _signInWithGoogle,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(50),
+          border: Border.all(color: Colors.grey.shade300),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            )
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Google "G" logo menggunakan warna asli
+            Container(
+              width: 20,
+              height: 20,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+              ),
+              child: const CustomPaint(
+                painter: _GoogleLogoPainter(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Lanjutkan dengan Google',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -795,4 +890,68 @@ class _ShakeWidgetState extends State<ShakeWidget>
       child: widget.child,
     );
   }
+}
+
+/// CustomPainter yang menggambar logo Google "G" dengan warna asli.
+class _GoogleLogoPainter extends CustomPainter {
+  const _GoogleLogoPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final double cx = size.width / 2;
+    final double cy = size.height / 2;
+    final double r = size.width / 2;
+
+    // Warna-warna Google
+    const blue = Color(0xFF4285F4);
+    const red = Color(0xFFEA4335);
+    const yellow = Color(0xFFFBBC04);
+    const green = Color(0xFF34A853);
+
+    final paint = Paint()..style = PaintingStyle.stroke;
+
+    // Busur biru (kanan atas, ~330° → memutar 90°)
+    paint
+      ..color = blue
+      ..strokeWidth = r * 0.32;
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.72),
+      -0.52, 1.57, false, paint,
+    );
+
+    // Busur merah (kiri atas, ~210° → 120°)
+    paint.color = red;
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.72),
+      -2.62, 2.09, false, paint,
+    );
+
+    // Busur kuning (kiri bawah, ~90° → 90°)
+    paint.color = yellow;
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.72),
+      1.57, 1.05, false, paint,
+    );
+
+    // Busur hijau (kanan bawah → kanan atas)
+    paint.color = green;
+    canvas.drawArc(
+      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.72),
+      2.62, 1.05, false, paint,
+    );
+
+    // Bar horizontal "G" (garis kanan ke tengah)
+    paint
+      ..color = blue
+      ..strokeWidth = r * 0.30
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(cx, cy),
+      Offset(cx + r * 0.72, cy),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_GoogleLogoPainter oldDelegate) => false;
 }

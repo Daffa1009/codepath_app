@@ -284,6 +284,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         user?.namaLengkap ?? user?.username ?? 'Pengguna';
     final username = user?.username ?? '';
 
+    // Google user tidak punya password — sembunyikan section Ganti Password
+    final isGoogleUser =
+        Supabase.instance.client.auth.currentUser?.appMetadata['provider'] ==
+            'google';
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
@@ -360,6 +365,36 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   fontSize: 14, color: AppColors.textMuted),
             ),
 
+            // Badge Google user
+            if (isGoogleUser) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF4285F4).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFF4285F4).withValues(alpha: 0.4),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.verified_user,
+                        size: 13, color: Color(0xFF4285F4)),
+                    SizedBox(width: 5),
+                    Text(
+                      'Login via Google',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: Color(0xFF4285F4),
+                          fontWeight: FontWeight.w600),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+
             const SizedBox(height: 32),
 
             // === UPDATE PROFIL ===
@@ -423,87 +458,89 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
 
-            const SizedBox(height: 32),
-            const Divider(),
-            const SizedBox(height: 16),
+            // === GANTI PASSWORD (hanya untuk non-Google user) ===
+            if (!isGoogleUser) ...[
+              const SizedBox(height: 32),
+              const Divider(),
+              const SizedBox(height: 16),
 
-            // === GANTI PASSWORD ===
-            _sectionTitle('Ganti Password'),
-            const SizedBox(height: 12),
-            if (_passwordSuccess != null) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.success.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+              _sectionTitle('Ganti Password'),
+              const SizedBox(height: 12),
+              if (_passwordSuccess != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.success.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(_passwordSuccess!,
+                      style: const TextStyle(
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13)),
                 ),
-                child: Text(_passwordSuccess!,
-                    style: const TextStyle(
-                        color: AppColors.success,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13)),
+              ],
+              if (_passwordError != null) ...[
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: AppColors.maroon.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(_passwordError!,
+                      style: const TextStyle(
+                          color: AppColors.maroon,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 13)),
+                ),
+              ],
+              TextField(
+                controller: _oldPassCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  hintText: 'Password Lama',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _newPassCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  hintText: 'Password Baru',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _confirmPassCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  hintText: 'Konfirmasi Password Baru',
+                ),
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _changingPassword ? null : _changePassword,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryTeal,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: _changingPassword
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Ganti Password'),
+                ),
               ),
             ],
-            if (_passwordError != null) ...[
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                margin: const EdgeInsets.only(bottom: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.maroon.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(_passwordError!,
-                    style: const TextStyle(
-                        color: AppColors.maroon,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13)),
-              ),
-            ],
-            TextField(
-              controller: _oldPassCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(
-                hintText: 'Password Lama',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _newPassCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(
-                hintText: 'Password Baru',
-              ),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _confirmPassCtrl,
-              obscureText: true,
-              decoration: const InputDecoration(
-                hintText: 'Konfirmasi Password Baru',
-              ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _changingPassword ? null : _changePassword,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryTeal,
-                  foregroundColor: Colors.white,
-                ),
-                child: _changingPassword
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text('Ganti Password'),
-              ),
-            ),
 
             const SizedBox(height: 32),
             const Divider(),

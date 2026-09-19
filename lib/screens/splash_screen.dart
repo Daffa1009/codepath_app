@@ -100,6 +100,8 @@ class _SplashScreenState extends State<SplashScreen>
     final user = widget.currentUser;
 
     if (user == null) {
+      // Tidak ada session ATAU ada session tapi belum punya profile
+      // (Google user baru). Main memeriksa kedua kondisi sebelum splash.
       destination = const LoginScreen();
     } else if (user.isAdmin) {
       destination = const AdminHomeScreen();

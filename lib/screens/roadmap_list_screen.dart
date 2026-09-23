@@ -6,7 +6,6 @@ import '../config/theme.dart';
 import '../models/roadmap.dart';
 import '../models/roadmap_item.dart';
 import '../providers/roadmap_provider.dart';
-import '../widgets/app_header.dart';
 import '../widgets/course_card.dart';
 import 'roadmap_detail_screen.dart';
 import 'video_detail_screen.dart';
@@ -141,120 +140,186 @@ class _RoadmapListScreenState extends State<RoadmapListScreen> {
     final hasVideoResults = videoResults.isNotEmpty;
     final hasAnyResults = hasRoadmapResults || hasVideoResults;
 
-    return SafeArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const AppHeader(title: 'Jalur Belajar'),
-          // Search Bar
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            curve: Curves.easeOut,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-            child: MouseRegion(
-              cursor: SystemMouseCursors.text,
-              child: TextField(
-                controller: _searchController,
-                focusNode: _searchFocus,
-                textInputAction: TextInputAction.search,
-                onSubmitted: (_) => _searchFocus.unfocus(),
-                decoration: InputDecoration(
-                  hintText: 'Cari jalur belajar atau materi...',
-                  hintStyle: const TextStyle(color: AppColors.textMuted),
-                  prefixIcon: const Icon(Icons.search, color: AppColors.textMuted),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const Icon(Icons.clear, color: AppColors.textMuted),
-                          onPressed: _clearSearch,
-                          tooltip: 'Hapus pencarian',
-                        )
-                      : null,
-                  filled: true,
-                  fillColor: AppColors.inputBackground,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                    borderSide: BorderSide.none,
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: CustomScrollView(
+        slivers: [
+          // ─── SliverAppBar — scroll mengecil smooth seperti bidang_detail ───
+          SliverAppBar(
+            expandedHeight: 130,
+            pinned: true,
+            automaticallyImplyLeading: false,
+            backgroundColor: AppColors.primaryTeal,
+            flexibleSpace: FlexibleSpaceBar(
+              titlePadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+              title: const Column(
+                mainAxisAlignment: MainAxisAlignment.end,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Jalur Belajar',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppRadius.pill),
-                    borderSide: const BorderSide(color: AppColors.primaryTeal, width: 2),
+                  Text(
+                    'Temukan roadmap yang sesuai',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+              background: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppColors.primaryTeal,
+                      Color(0xFF1A5C54),
+                    ],
+                  ),
+                ),
+                child: const Align(
+                  alignment: Alignment.centerRight,
+                  child: Opacity(
+                    opacity: 0.08,
+                    child: Icon(
+                      Icons.route_rounded,
+                      size: 140,
+                      color: Colors.white,
+                    ),
                   ),
                 ),
               ),
             ),
           ),
 
-          // Filter chips - hidden during search
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 250),
-            switchInCurve: Curves.easeOut,
-            switchOutCurve: Curves.easeIn,
-            child: isSearching
-                ? const SizedBox.shrink()
-                : Padding(
-                    key: const ValueKey('filter_chips'),
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Row(
-                      children: [
-                        _filterChip('Semua', _Filter.semua),
-                        const SizedBox(width: 10),
-                        _filterChip('Selesai', _Filter.selesai),
-                        const SizedBox(width: 10),
-                        _filterChip('Berjalan', _Filter.berjalan),
-                      ],
+          // ─── Search bar + filter chips inline ───
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+              child: Row(
+                children: [
+                  // Filter chips
+                  _filterChip('Semua', _Filter.semua),
+                  const SizedBox(width: 8),
+                  _filterChip('Berjalan', _Filter.berjalan),
+                  const SizedBox(width: 8),
+                  _filterChip('Selesai', _Filter.selesai),
+                  const SizedBox(width: 10),
+                  // Search icon button → expand ke TextField
+                  Expanded(
+                    child: MouseRegion(
+                      cursor: SystemMouseCursors.text,
+                      child: SizedBox(
+                        height: 38,
+                        child: TextField(
+                          controller: _searchController,
+                          focusNode: _searchFocus,
+                          textInputAction: TextInputAction.search,
+                          onSubmitted: (_) => _searchFocus.unfocus(),
+                          style: const TextStyle(fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Cari...',
+                            hintStyle: const TextStyle(
+                                color: AppColors.textMuted, fontSize: 13),
+                            prefixIcon: const Icon(Icons.search,
+                                color: AppColors.textMuted, size: 18),
+                            suffixIcon: _searchQuery.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear,
+                                        color: AppColors.textMuted, size: 16),
+                                    onPressed: _clearSearch,
+                                    padding: EdgeInsets.zero,
+                                  )
+                                : null,
+                            filled: true,
+                            fillColor: AppColors.inputBackground,
+                            contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 12, vertical: 0),
+                            border: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.pill),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius:
+                                  BorderRadius.circular(AppRadius.pill),
+                              borderSide: const BorderSide(
+                                  color: AppColors.primaryTeal, width: 1.5),
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-          ),
-
-          const SizedBox(height: 8),
-
-          // Content
-          Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 300),
-              switchInCurve: Curves.easeOut,
-              switchOutCurve: Curves.easeIn,
-              child: isSearching
-                  ? _buildSearchResults(
-                      key: const ValueKey('search_results'),
-                      roadmapResults: roadmapResults,
-                      videoResults: videoResults,
-                      hasAnyResults: hasAnyResults,
-                      query: _searchQuery,
-                    )
-                  : _buildDefaultList(
-                      key: const ValueKey('default_list'),
-                      roadmaps: filteredRoadmaps,
-                    ),
+                ],
+              ),
             ),
           ),
+
+          // ─── Content ───
+          isSearching
+              ? _buildSearchResultsSliver(
+                  roadmapResults: roadmapResults,
+                  videoResults: videoResults,
+                  hasAnyResults: hasAnyResults,
+                  query: _searchQuery,
+                )
+              : _buildDefaultListSliver(roadmaps: filteredRoadmaps),
         ],
       ),
     );
   }
 
-  Widget _buildDefaultList({
-    required Key key,
-    required List<Roadmap> roadmaps,
+  Widget _buildDefaultListSliver({required List<Roadmap> roadmaps}) {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, i) {
+            final roadmap = roadmaps[i];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 14),
+              child: CourseCard(
+                roadmap: roadmap,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => RoadmapDetailScreen(roadmapId: roadmap.id),
+                  ),
+                ),
+              ),
+            );
+          },
+          childCount: roadmaps.length,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSearchResultsSliver({
+    required List<Roadmap> roadmapResults,
+    required Map<Roadmap, List<RoadmapItem>> videoResults,
+    required bool hasAnyResults,
+    required String query,
   }) {
-    return ListView.separated(
-      key: key,
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      itemCount: roadmaps.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 14),
-      itemBuilder: (context, i) {
-        final roadmap = roadmaps[i];
-        return CourseCard(
-          roadmap: roadmap,
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => RoadmapDetailScreen(roadmapId: roadmap.id),
-            ),
-          ),
-        );
-      },
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+      sliver: SliverToBoxAdapter(
+        child: _buildSearchResults(
+          key: const ValueKey('search_results'),
+          roadmapResults: roadmapResults,
+          videoResults: videoResults,
+          hasAnyResults: hasAnyResults,
+          query: query,
+        ),
+      ),
     );
   }
 
@@ -267,7 +332,9 @@ class _RoadmapListScreenState extends State<RoadmapListScreen> {
   }) {
     return ListView(
       key: key,
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
       children: [
         if (!hasAnyResults)
           _buildEmptyState(query)
@@ -276,12 +343,15 @@ class _RoadmapListScreenState extends State<RoadmapListScreen> {
             _buildSectionHeader('Jalur Belajar'),
             const SizedBox(height: 8),
             ...roadmapResults.map((roadmap) => _SearchResultFadeIn(
-                  child: CourseCard(
-                    roadmap: roadmap,
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => RoadmapDetailScreen(roadmapId: roadmap.id),
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: CourseCard(
+                      roadmap: roadmap,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => RoadmapDetailScreen(roadmapId: roadmap.id),
+                        ),
                       ),
                     ),
                   ),
@@ -369,13 +439,23 @@ class _RoadmapListScreenState extends State<RoadmapListScreen> {
     return ChoiceChip(
       label: Text(label),
       selected: active,
+      showCheckmark: false,
       onSelected: (_) => setState(() => _filter = value),
+      // AKTIF: background gold, teks putih
       selectedColor: AppColors.gold,
-      backgroundColor: AppColors.primaryTeal,
-      labelStyle: TextStyle(
-        color: active ? Colors.white : Colors.white70,
-        fontWeight: FontWeight.w600,
+      // TIDAK AKTIF: background putih, teks teal, border teal tipis
+      backgroundColor: Colors.white,
+      side: BorderSide(
+        color: active
+            ? Colors.transparent
+            : AppColors.primaryTeal.withValues(alpha: 0.3),
       ),
+      labelStyle: TextStyle(
+        color: active ? Colors.white : AppColors.primaryTeal,
+        fontWeight: FontWeight.w600,
+        fontSize: 12,
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
       shape: const StadiumBorder(),
     );
   }

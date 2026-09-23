@@ -632,15 +632,17 @@ class _LoginScreenState extends State<LoginScreen> {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Google "G" logo menggunakan warna asli
-            Container(
+            // Google "G" logo — SVG dari CDN resmi Google
+            SizedBox(
               width: 20,
               height: 20,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-              ),
-              child: const CustomPaint(
-                painter: _GoogleLogoPainter(),
+              child: Image.network(
+                'https://www.google.com/favicon.ico',
+                width: 20,
+                height: 20,
+                errorBuilder: (_, __, ___) => const CustomPaint(
+                  painter: _GoogleLogoPainter(),
+                ),
               ),
             ),
             const SizedBox(width: 12),
@@ -892,7 +894,8 @@ class _ShakeWidgetState extends State<ShakeWidget>
   }
 }
 
-/// CustomPainter yang menggambar logo Google "G" dengan warna asli.
+/// CustomPainter logo Google "G" akurat — dipakai sebagai fallback
+/// jika Image.network gagal load.
 class _GoogleLogoPainter extends CustomPainter {
   const _GoogleLogoPainter();
 
@@ -900,54 +903,45 @@ class _GoogleLogoPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final double cx = size.width / 2;
     final double cy = size.height / 2;
-    final double r = size.width / 2;
+    final double r = size.width / 2 * 0.85;
+    final double strokeW = r * 0.38;
 
-    // Warna-warna Google
     const blue = Color(0xFF4285F4);
     const red = Color(0xFFEA4335);
-    const yellow = Color(0xFFFBBC04);
+    const yellow = Color(0xFFFBBC05);
     const green = Color(0xFF34A853);
 
-    final paint = Paint()..style = PaintingStyle.stroke;
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeW
+      ..strokeCap = StrokeCap.butt;
 
-    // Busur biru (kanan atas, ~330° → memutar 90°)
-    paint
-      ..color = blue
-      ..strokeWidth = r * 0.32;
-    canvas.drawArc(
-      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.72),
-      -0.52, 1.57, false, paint,
-    );
+    final rect = Rect.fromCircle(center: Offset(cx, cy), radius: r);
 
-    // Busur merah (kiri atas, ~210° → 120°)
+    // Merah: kiri atas (225° → 90°) = -π*1.25 span π/2*2.0
     paint.color = red;
-    canvas.drawArc(
-      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.72),
-      -2.62, 2.09, false, paint,
-    );
+    canvas.drawArc(rect, -2.356, 1.833, false, paint);
 
-    // Busur kuning (kiri bawah, ~90° → 90°)
+    // Kuning: kiri bawah (135° → 90°) = π*0.75 span π/2
     paint.color = yellow;
-    canvas.drawArc(
-      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.72),
-      1.57, 1.05, false, paint,
-    );
+    canvas.drawArc(rect, 2.356, 1.047, false, paint);
 
-    // Busur hijau (kanan bawah → kanan atas)
+    // Hijau: bawah kanan (225° → 90°) = π*1.25 span π/2
     paint.color = green;
-    canvas.drawArc(
-      Rect.fromCircle(center: Offset(cx, cy), radius: r * 0.72),
-      2.62, 1.05, false, paint,
-    );
+    canvas.drawArc(rect, 3.403, 0.785, false, paint);
 
-    // Bar horizontal "G" (garis kanan ke tengah)
+    // Biru: kanan atas → kanan (315° → 135°)
+    paint.color = blue;
+    canvas.drawArc(rect, -0.785, 1.571, false, paint);
+
+    // Bar horizontal kanan (garis mendatar G)
     paint
-      ..color = blue
-      ..strokeWidth = r * 0.30
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeW
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(
       Offset(cx, cy),
-      Offset(cx + r * 0.72, cy),
+      Offset(cx + r, cy),
       paint,
     );
   }

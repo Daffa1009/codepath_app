@@ -23,11 +23,11 @@ class BidangDetailScreen extends StatelessWidget {
 
           return CustomScrollView(
             slivers: [
-              // ─── SliverAppBar berwarna sesuai bidang ───
+              // ─── SliverAppBar selaras dengan beranda (primaryTeal) ───
               SliverAppBar(
                 expandedHeight: 170,
                 pinned: true,
-                backgroundColor: bidang.warnaColor,
+                backgroundColor: AppColors.primaryTeal,
                 foregroundColor: Colors.white,
                 flexibleSpace: FlexibleSpaceBar(
                   titlePadding: const EdgeInsets.fromLTRB(56, 0, 16, 16),
@@ -40,13 +40,13 @@ class BidangDetailScreen extends StatelessWidget {
                     ),
                   ),
                   background: Container(
-                    decoration: BoxDecoration(
+                    decoration: const BoxDecoration(
                       gradient: LinearGradient(
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight,
                         colors: [
-                          bidang.warnaColor,
-                          bidang.warnaColor.withValues(alpha: 0.65),
+                          AppColors.primaryTeal,
+                          Color(0xFF1A5C54),
                         ],
                       ),
                     ),
@@ -74,7 +74,7 @@ class BidangDetailScreen extends StatelessWidget {
                                 width: 56,
                                 height: 56,
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.2),
+                                  color: AppColors.gold.withValues(alpha: 0.25),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(
@@ -121,15 +121,15 @@ class BidangDetailScreen extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 3),
                         decoration: BoxDecoration(
-                          color: bidang.warnaColor.withValues(alpha: 0.12),
+                          color: AppColors.gold.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(AppRadius.pill),
                         ),
                         child: Text(
                           '${roadmaps.length}',
-                          style: TextStyle(
+                          style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
-                            color: bidang.warnaColor,
+                            color: AppColors.gold,
                           ),
                         ),
                       ),
@@ -140,16 +140,16 @@ class BidangDetailScreen extends StatelessWidget {
 
               // ─── Roadmap list / empty state ───
               if (roadmaps.isEmpty)
-                SliverToBoxAdapter(
+                const SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.all(40),
+                    padding: EdgeInsets.all(40),
                     child: Column(
                       children: [
                         Icon(Icons.inbox_rounded,
                             size: 56,
-                            color: bidang.warnaColor.withValues(alpha: 0.3)),
-                        const SizedBox(height: 12),
-                        const Text(
+                            color: AppColors.textMuted),
+                        SizedBox(height: 12),
+                        Text(
                           'Belum ada roadmap untuk bidang ini.',
                           style: TextStyle(color: AppColors.textMuted),
                           textAlign: TextAlign.center,

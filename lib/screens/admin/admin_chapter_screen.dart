@@ -7,11 +7,13 @@ import '../../models/chapter_item.dart';
 class AdminChapterScreen extends StatefulWidget {
   final String itemId;
   final String videoTitle;
+  final String youtubeUrl;
 
   const AdminChapterScreen({
     super.key,
     required this.itemId,
     required this.videoTitle,
+    this.youtubeUrl = '',
   });
 
   @override
@@ -326,6 +328,220 @@ class _AdminChapterScreenState extends State<AdminChapterScreen> {
   }
 
   // ---------------------------------------------------------------
+  // AI GENERATE
+  // ---------------------------------------------------------------
+  Future<void> _showAiGenerateDialog() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
+        content: const Row(
+          children: [
+            CircularProgressIndicator(color: AppColors.primaryTeal),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Menganalisa video...',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  Text('AI sedang generate poin materi',
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textMuted)),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    try {
+      final response =
+          await Supabase.instance.client.functions.invoke(
+        'generate-chapters',
+        body: {
+          'videoTitle': widget.videoTitle,
+          'youtubeUrl': widget.youtubeUrl,
+          'existingChapters': _chapters
+              .map((c) => {
+                    'title': c.title,
+                    'startTime': c.startTime,
+                  })
+              .toList(),
+        },
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      final data = response.data as Map<String, dynamic>?;
+      if (data == null || data['chapters'] == null) {
+        throw Exception('AI tidak bisa generate chapters');
+      }
+
+      final generatedChapters = (data['chapters'] as List)
+          .map((c) => {
+                'title': c['title'] as String,
+                'startTime': (c['start_time'] as num).toInt(),
+              })
+          .toList();
+
+      if (mounted) _showAiResultDialog(generatedChapters);
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal generate: $e'),
+            backgroundColor: AppColors.maroon,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showAiResultDialog(List<Map<String, dynamic>> generatedChapters) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
+        title: const Row(
+          children: [
+            Icon(Icons.auto_awesome, color: AppColors.gold, size: 20),
+            SizedBox(width: 8),
+            Text('Hasil Generate AI',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${generatedChapters.length} poin materi berhasil di-generate. '
+                'Review dan konfirmasi untuk menyimpan:',
+                style: TextStyle(
+                    fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: generatedChapters.length,
+                  itemBuilder: (context, index) {
+                    final chapter = generatedChapters[index];
+                    final secs = chapter['startTime'] as int;
+                    final minutes = secs ~/ 60;
+                    final seconds = secs % 60;
+                    final timeLabel =
+                        '${minutes.toString().padLeft(2, '0')}:'
+                        '${seconds.toString().padLeft(2, '0')}';
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryTeal,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              timeLabel,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              chapter['title'] as String,
+                              style: const TextStyle(fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Batal',
+                style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _saveGeneratedChapters(generatedChapters);
+            },
+            icon: const Icon(Icons.save, size: 16),
+            label: const Text('Simpan Semua'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryTeal,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _saveGeneratedChapters(
+      List<Map<String, dynamic>> chapters) async {
+    try {
+      await _db.from('roadmap_item_chapters').insert(
+            chapters
+                .asMap()
+                .entries
+                .map((e) => {
+                      'item_id': widget.itemId,
+                      'title': e.value['title'],
+                      'start_time': e.value['startTime'],
+                      'sort_order': e.key + 1,
+                    })
+                .toList(),
+          );
+
+      await _fetchChapters();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '${chapters.length} poin materi berhasil disimpan!'),
+            backgroundColor: AppColors.primaryTeal,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal simpan: $e'),
+            backgroundColor: AppColors.maroon,
+          ),
+        );
+      }
+    }
+  }
+
+  // ---------------------------------------------------------------
   // TAMBAH BULK dialog
   // ---------------------------------------------------------------
   void _showBulkImportDialog() {
@@ -551,9 +767,19 @@ class _AdminChapterScreenState extends State<AdminChapterScreen> {
         ),
         actions: [
           TextButton.icon(
+            onPressed: _showAiGenerateDialog,
+            icon: const Icon(Icons.auto_awesome,
+                color: AppColors.gold, size: 18),
+            label: const Text('Generate AI',
+                style: TextStyle(
+                    color: AppColors.gold,
+                    fontWeight: FontWeight.w600)),
+          ),
+          TextButton.icon(
             onPressed: _showBulkImportDialog,
             icon: const Icon(Icons.playlist_add, color: Colors.white),
-            label: const Text('Import Bulk', style: TextStyle(color: Colors.white)),
+            label: const Text('Import Bulk',
+                style: TextStyle(color: Colors.white)),
           ),
           const SizedBox(width: 8),
         ],

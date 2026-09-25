@@ -305,6 +305,7 @@ class _AdminRoadmapItemsScreenState extends State<AdminRoadmapItemsScreen> {
                                   builder: (_) => AdminChapterScreen(
                                     itemId: item['id'] as String,
                                     videoTitle: item['title'] as String? ?? '',
+                                    youtubeUrl: item['youtube_url'] as String? ?? '',
                                   ),
                                 ),
                               ),
